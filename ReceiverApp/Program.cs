@@ -64,18 +64,25 @@ namespace ReceiverApp
                 while (true)
                 {
                     string? rawData = reader.ReadLine();
-                    if (rawData != null)
+                    if (rawData == null)
                     {
-                        try
-                        {
-                            var msg = JsonSerializer.Deserialize<Message>(rawData);
-                            if (msg != null)
-                            {
-                                Console.WriteLine($"[{msg.Timestamp:HH:mm:ss}] Mesaj primit on/offline [{msg.Topic}]: {msg.Payload}");
-                            }
-                        }
-                        catch { }
+                        // Broker-ul a închis conexiunea
+                        Console.WriteLine("[DECONECTAT] Conexiunea cu brokerul s-a închis.");
+                        break;
                     }
+
+                    try
+                    {
+                        var msg = JsonSerializer.Deserialize<Message>(rawData);
+                        if (msg != null)
+                        {
+                            Console.WriteLine($"[{msg.Timestamp:HH:mm:ss}] Mesaj primit on/offline [{msg.Topic}]: {msg.Payload}");
+                            // Confirmăm către broker că mesajul a fost efectiv primit și procesat,
+                            // altfel brokerul nu poate ști dacă a fost livrat cu adevărat.
+                            writer.WriteLine($"ACK:{msg.Id}");
+                        }
+                    }
+                    catch { }
                 }
             }
             catch (Exception ex)

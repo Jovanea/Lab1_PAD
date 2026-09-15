@@ -8,24 +8,19 @@
     "net10.0": []
   },
   "packageFolders": {
-    "C:\\Users\\John\\.nuget\\packages\\": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "/Users/mihniovaalexia/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\BrokerApp\\BrokerApp.csproj",
+      "projectUniqueName": "/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/BrokerApp/BrokerApp.csproj",
       "projectName": "BrokerApp",
-      "projectPath": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\BrokerApp\\BrokerApp.csproj",
-      "packagesPath": "C:\\Users\\John\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\BrokerApp\\obj\\",
+      "projectPath": "/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/BrokerApp/BrokerApp.csproj",
+      "packagesPath": "/Users/mihniovaalexia/.nuget/packages/",
+      "outputPath": "/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/BrokerApp/obj/",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\John\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config"
+        "/Users/mihniovaalexia/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"
@@ -72,7 +67,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "/Users/mihniovaalexia/.dotnet/sdk/10.0.401/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",

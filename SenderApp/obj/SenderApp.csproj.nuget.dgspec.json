@@ -1,24 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\SenderApp.csproj": {}
+    "/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/SenderApp/SenderApp.csproj": {}
   },
   "projects": {
-    "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\SenderApp.csproj": {
+    "/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/SenderApp/SenderApp.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\SenderApp.csproj",
+        "projectUniqueName": "/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/SenderApp/SenderApp.csproj",
         "projectName": "SenderApp",
-        "projectPath": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\SenderApp.csproj",
-        "packagesPath": "C:\\Users\\John\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\obj\\",
+        "projectPath": "/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/SenderApp/SenderApp.csproj",
+        "packagesPath": "/Users/mihniovaalexia/.nuget/packages/",
+        "outputPath": "/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/SenderApp/obj/",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\John\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config"
+          "/Users/mihniovaalexia/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
@@ -65,7 +61,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "/Users/mihniovaalexia/.dotnet/sdk/10.0.401/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

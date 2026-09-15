@@ -55,6 +55,12 @@ namespace BrokerApp
         // Socket-urile active ale clienților conectați în prezent: ClientId -> TcpClient
         private static readonly ConcurrentDictionary<string, TcpClient> ActiveSockets = new();
 
+        // Reader-ul asociat fiecărui socket activ, folosit pentru a citi ACK-urile de livrare
+        private static readonly ConcurrentDictionary<string, StreamReader> ActiveReaders = new();
+
+        // Cîte un lock per ClientId, ca să nu livreze concurent doi workeri către același receiver
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> DeliveryLocks = new();
+
         private static readonly object FileLock = new();
         private static readonly string XmlPath = "broker_storage.xml";
 
@@ -138,6 +144,7 @@ namespace BrokerApp
                     // Salvăm abonamentul clientului
                     SubscribedClients[clientId] = topic;
                     ActiveSockets[clientId] = client;
+                    ActiveReaders[clientId] = reader;
 
                     Console.WriteLine($"[SUBSCRIBE] Receiver '{clientId}' s-a conectat/abonat la topicul '{topic}'");
 
@@ -152,6 +159,7 @@ namespace BrokerApp
 
                     // Când se deconectează, îl scoatem doar din socket-uri active (abonamentul și mesajele offline RĂMÂN)[cite: 1]
                     ActiveSockets.TryRemove(clientId, out _);
+                    ActiveReaders.TryRemove(clientId, out _);
                     Console.WriteLine($"[OFFLINE] Receiver '{clientId}' s-a deconectat. Mesajele viitoare vor fi salvate pe disk.");
                 }
             }
@@ -164,34 +172,66 @@ namespace BrokerApp
         // Trite toate mesajele restante din coada unui client specific[cite: 1]
         private static void DeliverPendingMessagesForClient(string clientId)
         {
-            if (!ActiveSockets.TryGetValue(clientId, out var client) || !client.Connected)
-                return;
-
-            if (PendingMessages.TryGetValue(clientId, out var queue))
+            // Un singur worker poate livra concomitent către un anumit client, altfel
+            // doi PUBLISH-uri simultane pot face ambele Peek pe același mesaj din coadă
+            // înainte ca vreunul să apuce să-l scoată (Dequeue) => livrare duplicată.
+            var deliveryLock = DeliveryLocks.GetOrAdd(clientId, _ => new SemaphoreSlim(1, 1));
+            deliveryLock.Wait();
+            try
             {
-                while (queue.TryPeek(out var message))
+                if (!ActiveSockets.TryGetValue(clientId, out var client) || !client.Connected)
+                    return;
+                if (!ActiveReaders.TryGetValue(clientId, out var ackReader))
+                    return;
+
+                if (PendingMessages.TryGetValue(clientId, out var queue))
                 {
-                    try
+                    while (queue.TryPeek(out var message))
                     {
-                        NetworkStream ns = client.GetStream();
-                        string jsonString = JsonSerializer.Serialize(message) + "\n";
-                        byte[] data = Encoding.UTF8.GetBytes(jsonString);
+                        try
+                        {
+                            NetworkStream ns = client.GetStream();
+                            string jsonString = JsonSerializer.Serialize(message) + "\n";
+                            byte[] data = Encoding.UTF8.GetBytes(jsonString);
 
-                        ns.Write(data, 0, data.Length);
-                        ns.Flush();
+                            ns.Write(data, 0, data.Length);
+                            ns.Flush();
 
-                        // Dacă s-a trimis cu succes pe socket, îl scoatem din coadă[cite: 1]
-                        queue.TryDequeue(out _);
-                        Console.WriteLine($"  -> Livrat mesaj istoric/nou către '{clientId}' [{message.Topic}]: {message.Payload}");
+                            // Un Write reușit NU garantează că receiver-ul e încă viu (poate
+                            // fi doar bufferat de TCP), deci așteptăm confirmarea explicită
+                            // (ACK) trimisă de receiver înainte de a scoate mesajul din coadă.
+                            ns.ReadTimeout = 5000;
+                            string? ack = ackReader.ReadLine();
+
+                            if (ack == $"ACK:{message.Id}")
+                            {
+                                queue.TryDequeue(out _);
+                                Console.WriteLine($"  -> Livrat si confirmat (ACK) catre '{clientId}' [{message.Topic}]: {message.Payload}");
+                            }
+                            else
+                            {
+                                // Conexiune închisă (ACK == null) sau răspuns neașteptat: nu marcăm
+                                // mesajul ca livrat, îl lăsăm în coadă pentru încercarea următoare.
+                                ActiveSockets.TryRemove(clientId, out _);
+                                ActiveReaders.TryRemove(clientId, out _);
+                                break;
+                            }
+                        }
+                        catch
+                        {
+                            // Socket-ul a căzut (la scriere sau la așteptarea ACK-ului), oprim
+                            // livrarea (mesajul rămâne în coadă pentru data viitoare)[cite: 1]
+                            ActiveSockets.TryRemove(clientId, out _);
+                            ActiveReaders.TryRemove(clientId, out _);
+                            break;
+                        }
                     }
-                    catch
-                    {
-                        // Socket-ul a căzut în timpul trimiterii, oprim livrarea (mesajul rămâne în coadă pentru data viitoare)[cite: 1]
-                        ActiveSockets.TryRemove(clientId, out _);
-                        break;
-                    }
+                    SaveToXml();
                 }
-                SaveToXml();
+            }
+            finally
+            {
+                deliveryLock.Release();
             }
         }
 
