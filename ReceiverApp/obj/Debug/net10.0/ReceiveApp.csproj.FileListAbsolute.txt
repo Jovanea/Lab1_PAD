@@ -1,0 +1,14 @@
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\bin\Debug\net10.0\ReceiveApp.exe
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\bin\Debug\net10.0\ReceiveApp.deps.json
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\bin\Debug\net10.0\ReceiveApp.runtimeconfig.json
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\bin\Debug\net10.0\ReceiveApp.dll
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\bin\Debug\net10.0\ReceiveApp.pdb
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\ReceiveApp.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\ReceiveApp.AssemblyInfoInputs.cache
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\ReceiveApp.AssemblyInfo.cs
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\ReceiveApp.csproj.CoreCompileInputs.cache
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\ReceiveApp.dll
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\refint\ReceiveApp.dll
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\ReceiveApp.pdb
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\ReceiveApp.genruntimeconfig.cache
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\ReceiverApp\obj\Debug\net10.0\ref\ReceiveApp.dll

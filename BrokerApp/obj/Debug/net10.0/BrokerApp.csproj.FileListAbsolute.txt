@@ -1,0 +1,14 @@
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\bin\Debug\net10.0\BrokerApp.exe
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\bin\Debug\net10.0\BrokerApp.deps.json
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\bin\Debug\net10.0\BrokerApp.runtimeconfig.json
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\bin\Debug\net10.0\BrokerApp.dll
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\bin\Debug\net10.0\BrokerApp.pdb
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\BrokerApp.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\BrokerApp.AssemblyInfoInputs.cache
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\BrokerApp.AssemblyInfo.cs
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\BrokerApp.csproj.CoreCompileInputs.cache
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\BrokerApp.dll
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\refint\BrokerApp.dll
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\BrokerApp.pdb
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\BrokerApp.genruntimeconfig.cache
+C:\Users\John\Desktop\Anul_IV_sem_I\PAD\Lab1_PAD\BrokerApp\obj\Debug\net10.0\ref\BrokerApp.dll
