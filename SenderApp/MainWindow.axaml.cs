@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using MessageHub.Configuration;
 
 namespace SenderApp
 {
@@ -33,6 +34,13 @@ namespace SenderApp
         public string StatusIcon { get; set; } = string.Empty;
     }
 
+    public class BrokerResponse
+    {
+        public bool Success { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Detail { get; set; } = string.Empty;
+    }
+
     public partial class MainWindow : Window
     {
         private readonly ObservableCollection<SentEntry> _history = new();
@@ -40,6 +48,7 @@ namespace SenderApp
         public MainWindow()
         {
             InitializeComponent();
+            BrokerHostBox.Text = EnvironmentSettings.BrokerHost;
             HistoryList.ItemsSource = _history;
         }
 
@@ -59,7 +68,16 @@ namespace SenderApp
             StatusText.Text = "Se trimite...";
             StatusText.Foreground = Avalonia.Media.Brushes.Gray;
 
-            bool success = await Task.Run(() => SendMessage(topic, payload));
+            string brokerHost = BrokerHostBox.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(brokerHost))
+            {
+                StatusText.Text = "Adresa brokerului este obligatorie.";
+                StatusText.Foreground = Avalonia.Media.Brushes.OrangeRed;
+                SendButton.IsEnabled = true;
+                return;
+            }
+
+            (bool success, string detail) = await Task.Run(() => SendMessage(brokerHost, topic, payload));
 
             _history.Insert(0, new SentEntry
             {
@@ -70,6 +88,7 @@ namespace SenderApp
             });
 
             StatusText.Text = success ? "Mesaj expediat către Broker." : "Eroare de conexiune la Broker.";
+            StatusText.Text = detail;
             StatusText.Foreground = success ? Avalonia.Media.Brushes.SeaGreen : Avalonia.Media.Brushes.OrangeRed;
 
             if (success)
@@ -80,13 +99,14 @@ namespace SenderApp
             SendButton.IsEnabled = true;
         }
 
-        private static bool SendMessage(string topic, string payload)
+        private static (bool Success, string Detail) SendMessage(string brokerHost, string topic, string payload)
         {
             try
             {
-                using TcpClient client = new TcpClient("127.0.0.1", 5000);
+                using TcpClient client = new TcpClient(brokerHost, EnvironmentSettings.BrokerPort);
                 using NetworkStream stream = client.GetStream();
-                using StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+                using StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
+                using StreamReader reader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
 
                 var packet = new Packet
                 {
@@ -96,11 +116,15 @@ namespace SenderApp
                 };
 
                 writer.WriteLine(JsonSerializer.Serialize(packet));
-                return true;
+                stream.ReadTimeout = 5000;
+                BrokerResponse? response = JsonSerializer.Deserialize<BrokerResponse>(reader.ReadLine() ?? string.Empty);
+                return response?.Success == true
+                    ? (true, response.Detail)
+                    : (false, response?.Detail ?? "Brokerul nu a confirmat mesajul.");
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                return (false, $"Eroare de conexiune la Broker: {ex.Message}");
             }
         }
     }

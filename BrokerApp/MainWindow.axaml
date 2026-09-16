@@ -1,0 +1,45 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1020" d:DesignHeight="690"
+        x:Class="BrokerApp.MainWindow"
+        Title="Message Hub — Broker" Width="1020" Height="690" MinWidth="820" MinHeight="560"
+        Background="#F5F7FB">
+  <Window.Styles>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#D8E1ED"/>
+      <Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="10,7"/>
+    </Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#155EEF"/><Setter Property="Foreground" Value="White"/>
+      <Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="15,9"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+    <Style Selector="Button.secondary"><Setter Property="Background" Value="White"/><Setter Property="Foreground" Value="#344054"/>
+      <Setter Property="BorderBrush" Value="#D0D5DD"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="15,9"/></Style>
+  </Window.Styles>
+  <Grid RowDefinitions="Auto,Auto,*" Margin="28">
+    <Grid ColumnDefinitions="*,Auto" Grid.Row="0">
+      <StackPanel Spacing="4">
+        <StackPanel Orientation="Horizontal" Spacing="10"><Border Width="30" Height="30" Background="#155EEF" CornerRadius="9"><TextBlock Text="M" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="MESSAGE HUB" FontSize="22" FontWeight="Bold" Foreground="#101828" VerticalAlignment="Center"/></StackPanel>
+        <TextBlock Text="BROKER TCP  /  monitorizare, rutare și livrare mesaje" Foreground="#667085" FontSize="13"/>
+      </StackPanel>
+      <Border Grid.Column="1" Background="White" BorderBrush="#E4E7EC" BorderThickness="1" CornerRadius="10" Padding="12,8" VerticalAlignment="Center"><StackPanel Orientation="Horizontal" Spacing="8"><Ellipse Name="StatusDot" Width="9" Height="9" Fill="#98A2B3" VerticalAlignment="Center"/><TextBlock Name="StatusText" Text="Oprit" Foreground="#475467" FontWeight="SemiBold"/></StackPanel></Border>
+    </Grid>
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto">
+      <TextBlock Text="PORT" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#475467"/><TextBox Name="PortBox" Grid.Column="1" Text="5000" Width="88"/>
+      <TextBlock Grid.Column="2" Text="Implicit din .env · TCP pe toate interfețele de rețea" VerticalAlignment="Center" Foreground="#667085" Margin="6,0,0,0"/>
+      <Button Name="StartButton" Grid.Column="4" Classes="primary" Content="Porneste brokerul" Click="OnStartClick"/>
+      <Button Name="StopButton" Grid.Column="5" Classes="secondary" Content="Opreste" IsEnabled="False" Click="OnStopClick"/>
+    </Grid>
+    <Grid Grid.Row="2" RowDefinitions="Auto,*">
+      <Grid ColumnDefinitions="*,*,*">
+        <Border Background="White" BorderBrush="#E4E7EC" BorderThickness="1" CornerRadius="12" Padding="16"><StackPanel Spacing="5"><TextBlock Text="ABONATI" Foreground="#667085" FontSize="11" FontWeight="SemiBold"/><TextBlock Name="SubscriberCountText" Text="0" FontSize="26" FontWeight="Bold" Foreground="#101828"/><TextBlock Text="clienti cunoscuti" Foreground="#98A2B3" FontSize="12"/></StackPanel></Border>
+        <Border Grid.Column="1" Background="White" BorderBrush="#E4E7EC" BorderThickness="1" CornerRadius="12" Padding="16"><StackPanel Spacing="5"><TextBlock Text="CONECTATI" Foreground="#667085" FontSize="11" FontWeight="SemiBold"/><TextBlock Name="ConnectedCountText" Text="0" FontSize="26" FontWeight="Bold" Foreground="#101828"/><TextBlock Text="receivere active" Foreground="#98A2B3" FontSize="12"/></StackPanel></Border>
+        <Border Grid.Column="2" Background="White" BorderBrush="#E4E7EC" BorderThickness="1" CornerRadius="12" Padding="16"><StackPanel Spacing="5"><TextBlock Text="IN ASTEPTARE" Foreground="#667085" FontSize="11" FontWeight="SemiBold"/><TextBlock Name="PendingCountText" Text="0" FontSize="26" FontWeight="Bold" Foreground="#101828"/><TextBlock Text="mesaje pending" Foreground="#98A2B3" FontSize="12"/></StackPanel></Border>
+      </Grid>
+      <Grid Grid.Row="1" ColumnDefinitions="0.9*,1.5*">
+        <Border Background="White" BorderBrush="#E4E7EC" BorderThickness="1" CornerRadius="12" Padding="18"><Grid RowDefinitions="Auto,*"><StackPanel Spacing="3"><TextBlock Text="ABONAMENTE" FontWeight="Bold" Foreground="#101828"/><TextBlock Text="Rutare curenta dupa topic" FontSize="12" Foreground="#667085"/></StackPanel><ScrollViewer Grid.Row="1" Margin="0,14,0,0"><ItemsControl Name="SubscribersList"><ItemsControl.ItemTemplate><DataTemplate><Border BorderBrush="#EAECF0" BorderThickness="0,0,0,1" Padding="0,9"><Grid ColumnDefinitions="*,Auto"><StackPanel Spacing="2"><TextBlock Text="{Binding ClientId}" FontWeight="SemiBold" Foreground="#344054"/><TextBlock Text="{Binding Topic}" FontSize="12" Foreground="#667085"/></StackPanel><TextBlock Grid.Column="1" Text="{Binding State}" Foreground="{Binding StateColor}" FontSize="12" VerticalAlignment="Center"/></Grid></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Grid></Border>
+        <Border Grid.Column="1" Background="White" BorderBrush="#E4E7EC" BorderThickness="1" CornerRadius="12" Padding="18"><Grid RowDefinitions="Auto,*"><StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="JURNAL ACTIVITATE" FontWeight="Bold" Foreground="#101828"/><TextBlock Text="ultimele evenimente" Foreground="#98A2B3" FontSize="12" VerticalAlignment="Center"/></StackPanel><ScrollViewer Grid.Row="1" Margin="0,14,0,0"><ItemsControl Name="LogList"><ItemsControl.ItemTemplate><DataTemplate><Border BorderBrush="#EAECF0" BorderThickness="0,0,0,1" Padding="0,8"><Grid ColumnDefinitions="Auto,Auto,*"><TextBlock Text="{Binding Time}" Foreground="#98A2B3" FontSize="11"/><Border Grid.Column="1" Background="{Binding BadgeColor}" CornerRadius="5" Padding="6,2"><TextBlock Text="{Binding Category}" Foreground="White" FontSize="10" FontWeight="SemiBold"/></Border><TextBlock Grid.Column="2" Text="{Binding Detail}" TextWrapping="Wrap" Foreground="#475467" FontSize="12" VerticalAlignment="Center"/></Grid></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer></Grid></Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

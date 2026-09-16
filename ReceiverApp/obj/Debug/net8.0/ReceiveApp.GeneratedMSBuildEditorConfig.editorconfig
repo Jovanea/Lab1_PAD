@@ -15,17 +15,16 @@ build_property.ProjectTypeGuids =
 build_property.InvariantGlobalization = 
 build_property.PlatformNeutralAssembly = 
 build_property.EnforceExtendedAnalyzerRules = 
-build_property.EntryPointFilePath = 
 build_property._SupportedPlatformList = Linux,macOS,Windows
 build_property.RootNamespace = ReceiveApp
-build_property.ProjectDir = /Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/ReceiverApp/
+build_property.ProjectDir = D:\Lab1_PAD\ReceiverApp\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.EffectiveAnalysisLevelStyle = 8.0
 build_property.EnableCodeStyleSeverity = 
 
-[/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/ReceiverApp/App.axaml]
+[D:/Lab1_PAD/ReceiverApp/App.axaml]
 build_metadata.AdditionalFiles.SourceItemGroup = AvaloniaXaml
 
-[/Users/mihniovaalexia/Desktop/Laboratoare2027/PAD/Lab1/App/Lab1_PAD/ReceiverApp/MainWindow.axaml]
+[D:/Lab1_PAD/ReceiverApp/MainWindow.axaml]
 build_metadata.AdditionalFiles.SourceItemGroup = AvaloniaXaml

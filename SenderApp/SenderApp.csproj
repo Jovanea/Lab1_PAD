@@ -14,4 +14,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\EnvironmentSettings.cs" Link="Configuration\EnvironmentSettings.cs" />
+  </ItemGroup>
+
 </Project>

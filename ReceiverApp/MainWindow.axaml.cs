@@ -9,6 +9,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
+using MessageHub.Configuration;
 
 namespace ReceiverApp
 {
@@ -34,6 +35,13 @@ namespace ReceiverApp
         public string Time { get; set; } = string.Empty;
     }
 
+    public class BrokerResponse
+    {
+        public bool Success { get; set; }
+        public string Code { get; set; } = string.Empty;
+        public string Detail { get; set; } = string.Empty;
+    }
+
     public partial class MainWindow : Window
     {
         private readonly ObservableCollection<ReceivedEntry> _feed = new();
@@ -41,17 +49,19 @@ namespace ReceiverApp
         public MainWindow()
         {
             InitializeComponent();
+            BrokerHostBox.Text = EnvironmentSettings.BrokerHost;
             FeedList.ItemsSource = _feed;
         }
 
         private void OnConnectClick(object? sender, RoutedEventArgs e)
         {
+            string brokerHost = BrokerHostBox.Text?.Trim() ?? string.Empty;
             string clientId = ClientIdBox.Text?.Trim() ?? string.Empty;
             string topic = TopicBox.Text?.Trim() ?? string.Empty;
 
-            if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(topic))
+            if (string.IsNullOrWhiteSpace(brokerHost) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(topic))
             {
-                SetStatus("Client ID și Topic sunt obligatorii.", Brushes.OrangeRed);
+                SetStatus("Adresa brokerului, Client ID și Topic sunt obligatorii.", Brushes.OrangeRed);
                 return;
             }
 
@@ -60,20 +70,28 @@ namespace ReceiverApp
             TopicBox.IsEnabled = false;
             SetStatus("Se conectează...", Brushes.Gray);
 
-            Task.Run(() => ConnectAndListen(clientId, topic));
+            Task.Run(() => ConnectAndListen(brokerHost, clientId, topic));
         }
 
-        private void ConnectAndListen(string clientId, string topic)
+        private void ConnectAndListen(string brokerHost, string clientId, string topic)
         {
             try
             {
-                using TcpClient client = new TcpClient("127.0.0.1", 5000);
+                using TcpClient client = new TcpClient(brokerHost, EnvironmentSettings.BrokerPort);
                 using NetworkStream stream = client.GetStream();
-                using StreamWriter writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
-                using StreamReader reader = new StreamReader(stream, Encoding.UTF8);
+                using StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
+                using StreamReader reader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
 
                 var packet = new Packet { Action = "SUBSCRIBE", Topic = topic, ClientId = clientId };
                 writer.WriteLine(JsonSerializer.Serialize(packet));
+
+                stream.ReadTimeout = 5000;
+                BrokerResponse? response = JsonSerializer.Deserialize<BrokerResponse>(reader.ReadLine() ?? string.Empty);
+                if (response?.Success != true)
+                {
+                    throw new InvalidOperationException(response?.Detail ?? "Brokerul nu a confirmat abonarea.");
+                }
+                stream.ReadTimeout = Timeout.Infinite;
 
                 Dispatcher.UIThread.Post(() =>
                     SetStatus($"Conectat ca '{clientId}' pe topicul '{topic}'", Brushes.SeaGreen));
