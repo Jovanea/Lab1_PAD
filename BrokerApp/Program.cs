@@ -33,6 +33,11 @@ public class BrokerResponse
     public string Detail { get; set; } = string.Empty;
 }
 
+public class BrokerTopicsResponse : BrokerResponse
+{
+    public List<string> Topics { get; set; } = new();
+}
+
 public class SubscriptionItem
 {
     public string ClientId { get; set; } = string.Empty;
@@ -176,22 +181,35 @@ public sealed class BrokerServer : IDisposable
                     return;
                 }
 
-                if (packet is null || string.IsNullOrWhiteSpace(packet.Action) || string.IsNullOrWhiteSpace(packet.Topic))
+                if (packet is null || string.IsNullOrWhiteSpace(packet.Action))
                 {
-                    SendResponse(stream, false, "INVALID_PACKET", "Action si Topic sunt obligatorii.");
+                    SendResponse(stream, false, "INVALID_PACKET", "Action este obligatoriu.");
                     return;
                 }
 
                 switch (packet.Action.ToUpperInvariant())
                 {
+                    case "LIST_TOPICS":
+                        HandleListTopics(stream);
+                        return;
                     case "PUBLISH":
+                        if (string.IsNullOrWhiteSpace(packet.Topic))
+                        {
+                            SendResponse(stream, false, "INVALID_PACKET", "Topic este obligatoriu pentru PUBLISH.");
+                            return;
+                        }
                         HandlePublish(packet, stream);
                         return;
                     case "SUBSCRIBE":
+                        if (string.IsNullOrWhiteSpace(packet.Topic))
+                        {
+                            SendResponse(stream, false, "INVALID_PACKET", "Topic este obligatoriu pentru SUBSCRIBE.");
+                            return;
+                        }
                         HandleSubscribe(packet, client, stream, reader, cancellationToken);
                         return;
                     default:
-                        SendResponse(stream, false, "UNKNOWN_ACTION", "Action acceptat: PUBLISH sau SUBSCRIBE.");
+                        SendResponse(stream, false, "UNKNOWN_ACTION", "Action acceptat: PUBLISH, SUBSCRIBE sau LIST_TOPICS.");
                         return;
                 }
             }
@@ -238,6 +256,20 @@ public sealed class BrokerServer : IDisposable
         WriteActivity("PUBLISH", $"Topic „{packet.Topic}” trimis catre {recipients.Length} abonat(i).");
     }
 
+    private void HandleListTopics(NetworkStream stream)
+    {
+        List<string> topics = GetActiveTopics();
+        byte[] response = Utf8.GetBytes(JsonSerializer.Serialize(new BrokerTopicsResponse
+        {
+            Success = true,
+            Code = "TOPICS",
+            Detail = topics.Count == 0 ? "Nu exista topicuri active." : "Topicuri active returnate.",
+            Topics = topics
+        }) + "\n");
+        stream.Write(response, 0, response.Length);
+        stream.Flush();
+    }
+
     private void HandleSubscribe(Packet packet, TcpClient client, NetworkStream stream, StreamReader reader, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(packet.ClientId))
@@ -254,7 +286,7 @@ public sealed class BrokerServer : IDisposable
         WriteActivity("SUBSCRIBE", $"{packet.ClientId} este abonat la „{packet.Topic}”.");
         DeliverPendingMessagesForClient(packet.ClientId);
 
-        while (!cancellationToken.IsCancellationRequested && client.Connected)
+        while (!cancellationToken.IsCancellationRequested && IsSocketConnected(client))
         {
             Thread.Sleep(500);
         }
@@ -268,7 +300,7 @@ public sealed class BrokerServer : IDisposable
         deliveryLock.Wait();
         try
         {
-            if (!_activeSockets.TryGetValue(clientId, out TcpClient? client) || !client.Connected ||
+            if (!_activeSockets.TryGetValue(clientId, out TcpClient? client) || !IsSocketConnected(client) ||
                 !_activeReaders.TryGetValue(clientId, out StreamReader? ackReader) ||
                 !_pendingMessages.TryGetValue(clientId, out ConcurrentQueue<Message>? queue))
             {
@@ -347,6 +379,47 @@ public sealed class BrokerServer : IDisposable
         }) + "\n");
         stream.Write(response, 0, response.Length);
         stream.Flush();
+    }
+
+    private List<string> GetActiveTopics()
+    {
+        CleanupInactiveConnections();
+
+        return _activeSockets.Keys
+            .Where(clientId => _subscriptions.ContainsKey(clientId))
+            .Select(clientId => _subscriptions[clientId])
+            .Where(topic => !string.IsNullOrWhiteSpace(topic))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private void CleanupInactiveConnections()
+    {
+        foreach ((string clientId, TcpClient client) in _activeSockets)
+        {
+            if (!IsSocketConnected(client))
+            {
+                RemoveActiveConnection(clientId, client);
+            }
+        }
+    }
+
+    private static bool IsSocketConnected(TcpClient client)
+    {
+        try
+        {
+            Socket socket = client.Client;
+            return client.Connected && !(socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0);
+        }
+        catch (SocketException)
+        {
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
     }
 
     private void RemoveActiveConnection(string clientId, TcpClient expectedClient)

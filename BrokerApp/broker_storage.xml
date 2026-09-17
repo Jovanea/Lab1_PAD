@@ -7,7 +7,11 @@
     </SubscriptionItem>
     <SubscriptionItem>
       <ClientId>receiver_1</ClientId>
-      <Topic>mate</Topic>
+      <Topic>Cursa</Topic>
+    </SubscriptionItem>
+    <SubscriptionItem>
+      <ClientId>receiver_2</ClientId>
+      <Topic>Cursa</Topic>
     </SubscriptionItem>
   </Subscriptions>
   <PendingMessages />

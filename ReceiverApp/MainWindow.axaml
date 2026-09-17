@@ -42,15 +42,15 @@
         <TextBlock Text="ABONARE" FontWeight="Bold" Foreground="#101828"/>
         <StackPanel Spacing="4">
           <TextBlock Text="ADRESA BROKER" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
-          <TextBox Name="BrokerHostBox" Watermark="ex: 127.0.0.1"/>
+          <TextBox Name="BrokerHostBox" Text="127.0.0.1"/>
         </StackPanel>
         <StackPanel Spacing="4">
           <TextBlock Text="ID CLIENT" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
-          <TextBox Name="ClientIdBox" Text="receiver_1" Watermark="ex: receiver_1"/>
+          <TextBox Name="ClientIdBox" Text="receiver_1"/>
         </StackPanel>
         <StackPanel Spacing="4">
           <TextBlock Text="TOPIC" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
-          <TextBox Name="TopicBox" Text="Curs" Watermark="ex: Curs"/>
+          <TextBox Name="TopicBox" Text="Curs"/>
         </StackPanel>
         <Button Name="ConnectButton" Classes="primary" Content="Conecteaza receiverul" Click="OnConnectClick"/>
         <StackPanel Orientation="Horizontal" Spacing="8">

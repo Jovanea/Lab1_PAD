@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using MessageHub.Configuration;
 
 namespace SenderApp
@@ -41,15 +42,37 @@ namespace SenderApp
         public string Detail { get; set; } = string.Empty;
     }
 
+    public class BrokerTopicsResponse : BrokerResponse
+    {
+        public List<string> Topics { get; set; } = new();
+    }
+
     public partial class MainWindow : Window
     {
         private readonly ObservableCollection<SentEntry> _history = new();
+        private readonly ObservableCollection<string> _topics = new();
+        private readonly DispatcherTimer _topicRefreshTimer;
+        private bool _isRefreshingTopics;
 
         public MainWindow()
         {
             InitializeComponent();
             BrokerHostBox.Text = EnvironmentSettings.BrokerHost;
             HistoryList.ItemsSource = _history;
+            TopicDropdown.ItemsSource = _topics;
+            _topicRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _topicRefreshTimer.Tick += async (_, _) => await RefreshTopicsAsync();
+            _topicRefreshTimer.Start();
+            Opened += async (_, _) => await RefreshTopicsAsync();
+            Closed += (_, _) => _topicRefreshTimer.Stop();
+        }
+
+        private void OnTopicSelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            if (TopicDropdown.SelectedItem is string topic && !string.IsNullOrWhiteSpace(topic))
+            {
+                TopicBox.Text = topic;
+            }
         }
 
         private async void OnSendClick(object? sender, RoutedEventArgs e)
@@ -96,7 +119,39 @@ namespace SenderApp
                 MessageBox.Text = string.Empty;
             }
 
+            await RefreshTopicsAsync();
             SendButton.IsEnabled = true;
+        }
+
+        private async Task RefreshTopicsAsync()
+        {
+            if (_isRefreshingTopics)
+            {
+                return;
+            }
+
+            string brokerHost = BrokerHostBox.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(brokerHost))
+            {
+                _topics.Clear();
+                return;
+            }
+
+            _isRefreshingTopics = true;
+            try
+            {
+                string[] topics = await Task.Run(() => GetActiveTopics(brokerHost));
+                TopicDropdown.SelectedItem = null;
+                _topics.Clear();
+                foreach (string topic in topics)
+                {
+                    _topics.Add(topic);
+                }
+            }
+            finally
+            {
+                _isRefreshingTopics = false;
+            }
         }
 
         private static (bool Success, string Detail) SendMessage(string brokerHost, string topic, string payload)
@@ -125,6 +180,28 @@ namespace SenderApp
             catch (Exception ex)
             {
                 return (false, $"Eroare de conexiune la Broker: {ex.Message}");
+            }
+        }
+
+        private static string[] GetActiveTopics(string brokerHost)
+        {
+            try
+            {
+                using TcpClient client = new TcpClient(brokerHost, EnvironmentSettings.BrokerPort);
+                using NetworkStream stream = client.GetStream();
+                using StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
+                using StreamReader reader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
+
+                writer.WriteLine(JsonSerializer.Serialize(new Packet { Action = "LIST_TOPICS" }));
+                stream.ReadTimeout = 2000;
+                BrokerTopicsResponse? response = JsonSerializer.Deserialize<BrokerTopicsResponse>(reader.ReadLine() ?? string.Empty);
+                return response?.Success == true
+                    ? response.Topics.Where(topic => !string.IsNullOrWhiteSpace(topic)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                    : Array.Empty<string>();
+            }
+            catch
+            {
+                return Array.Empty<string>();
             }
         }
     }

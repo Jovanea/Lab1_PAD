@@ -18,8 +18,14 @@
     <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="17" BorderBrush="#E4E7EC" BorderThickness="1" Margin="0,0,0,14">
       <StackPanel Spacing="11">
         <TextBlock Text="COMPUNE MESAJ" FontWeight="Bold" Foreground="#101828"/>
-        <StackPanel Spacing="4"><TextBlock Text="ADRESA BROKER" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/><TextBox Name="BrokerHostBox" Watermark="ex: 192.168.1.50"/></StackPanel>
-        <StackPanel Spacing="4"><TextBlock Text="TOPIC" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/><TextBox Name="TopicBox" Text="Curs" Watermark="ex: Curs"/></StackPanel>
+        <StackPanel Spacing="4"><TextBlock Text="ADRESA BROKER" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/><TextBox Name="BrokerHostBox" Text="127.0.0.1"/></StackPanel>
+        <StackPanel Spacing="4">
+          <TextBlock Text="TOPIC" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
+          <Grid ColumnDefinitions="*,132">
+            <TextBox Name="TopicBox" Text="Curs"/>
+            <ComboBox Name="TopicDropdown" Grid.Column="1" Margin="8,0,0,0" SelectionChanged="OnTopicSelectionChanged"/>
+          </Grid>
+        </StackPanel>
         <StackPanel Spacing="4"><TextBlock Text="MESAJ" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/><TextBox Name="MessageBox" Height="86" AcceptsReturn="True" TextWrapping="Wrap" Watermark="Scrie mesajul aici..."/></StackPanel>
         <Button Name="SendButton" Classes="primary" Content="Publica mesajul" Click="OnSendClick"/>
         <TextBlock Name="StatusText" FontSize="12" Text="Pregătit pentru publicare · port din .env" Foreground="#667085" TextWrapping="Wrap"/>
