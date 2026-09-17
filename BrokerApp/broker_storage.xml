@@ -4,13 +4,13 @@
     <SubscriptionItem>
       <ClientId>receiver_1</ClientId>
       <Topics>
-        <string>BD</string>
+        <string>pad</string>
       </Topics>
     </SubscriptionItem>
     <SubscriptionItem>
       <ClientId>receiver_2</ClientId>
       <Topics>
-        <string>PAD</string>
+        <string>pad</string>
       </Topics>
     </SubscriptionItem>
   </Subscriptions>

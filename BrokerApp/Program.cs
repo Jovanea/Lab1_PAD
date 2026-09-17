@@ -3,10 +3,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
-using System.Xml.Serialization;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using MessageHub.Configuration;
 
 namespace BrokerApp;
 
@@ -38,42 +36,6 @@ public class BrokerTopicsResponse : BrokerResponse
     public List<string> Topics { get; set; } = new();
 }
 
-public class SubscriptionItem
-{
-    public string ClientId { get; set; } = string.Empty;
-
-    // Camp vechi, pastrat doar pentru compatibilitate cu fisiere broker_storage.xml
-    // scrise inainte de suportul pentru abonare la mai multe topicuri. Nu mai este scris la salvare.
-    public string? Topic { get; set; }
-    public bool ShouldSerializeTopic() => false;
-
-    public List<string> Topics { get; set; } = new();
-}
-
-public class PendingMessageItem
-{
-    public string ClientId { get; set; } = string.Empty;
-    public Message Message { get; set; } = new();
-}
-
-public class DeadLetterItem
-{
-    public string Id { get; set; } = string.Empty;
-    public string ClientId { get; set; } = string.Empty;
-    public Message Message { get; set; } = new();
-    public string Reason { get; set; } = string.Empty;
-    public DateTime FailedAt { get; set; }
-    public int Attempts { get; set; }
-}
-
-[XmlRoot("BrokerState")]
-public class BrokerState
-{
-    public List<SubscriptionItem> Subscriptions { get; set; } = new();
-    public List<PendingMessageItem> PendingMessages { get; set; } = new();
-    public List<DeadLetterItem> DeadLetterMessages { get; set; } = new();
-}
-
 public sealed class DeadLetterRecord
 {
     public string Id { get; init; } = Guid.NewGuid().ToString();
@@ -101,8 +63,6 @@ public sealed class BrokerServer : IDisposable
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _deliveryLocks = new();
     private readonly ConcurrentDictionary<string, int> _deliveryAttempts = new();
     private readonly ConcurrentDictionary<string, DeadLetterRecord> _deadLetterMessages = new();
-    private readonly object _fileLock = new();
-    private readonly string _xmlPath = Path.Combine(EnvironmentSettings.FindProjectRoot(), "BrokerApp", "broker_storage.xml");
     private TcpListener? _listener;
     private CancellationTokenSource? _cancellation;
 
@@ -116,7 +76,6 @@ public sealed class BrokerServer : IDisposable
             return Task.CompletedTask;
         }
 
-        LoadFromXml();
         _cancellation = new CancellationTokenSource();
         _listener = new TcpListener(IPAddress.Any, port);
         _listener.Start();
@@ -143,7 +102,16 @@ public sealed class BrokerServer : IDisposable
         }
         _activeSockets.Clear();
         _activeReaders.Clear();
-        WriteActivity("SYSTEM", "Broker oprit.");
+
+        // Brokerul tine toata starea doar in memorie (fara persistenta pe disc): la oprire,
+        // se sterge complet totul, ca la urmatoarea pornire sa inceapa mereu curat
+        // (0 abonati, 0 mesaje pending, 0 dead-letter), fara "supravietuitori" din sesiuni vechi.
+        _subscriptions.Clear();
+        _pendingMessages.Clear();
+        _deliveryAttempts.Clear();
+        _deadLetterMessages.Clear();
+
+        WriteActivity("SYSTEM", "Broker oprit; toata starea a fost stearsa (nu exista persistenta pe disc).");
         return Task.CompletedTask;
     }
 
@@ -180,7 +148,6 @@ public sealed class BrokerServer : IDisposable
         }
 
         _pendingMessages.GetOrAdd(record.ClientId, _ => new ConcurrentQueue<Message>()).Enqueue(record.Message);
-        SaveToXml();
         WriteActivity("REQUEUE", $"Mesaj readaugat in coada pentru {record.ClientId}.");
         _ = Task.Run(() => DeliverPendingMessagesForClient(record.ClientId));
         return true;
@@ -194,7 +161,6 @@ public sealed class BrokerServer : IDisposable
             return false;
         }
 
-        SaveToXml();
         WriteActivity("DEAD_LETTER", "Mesaj sters definitiv din dead-letter.");
         return true;
     }
@@ -208,15 +174,14 @@ public sealed class BrokerServer : IDisposable
         }
 
         _deadLetterMessages.Clear();
-        SaveToXml();
         WriteActivity("DEAD_LETTER", "Coada dead-letter a fost golita.");
     }
 
     /// <summary>
     /// Elimina toti abonatii cunoscuti: inchide conexiunile active (receiverele vor vedea
-    /// conexiunea inchisa si vor trebui sa se re-aboneze), sterge toate abonamentele si mesajele
-    /// pending asociate lor, apoi salveaza starea goala. Dead-letter-ul nu este atins (are propriul
-    /// buton de golire), ca sa nu pierzi din greseala mesaje esuate pe care voiai sa le revezi.
+    /// conexiunea inchisa si vor trebui sa se re-aboneze) si sterge toate abonamentele si mesajele
+    /// pending asociate lor. Dead-letter-ul nu este atins (are propriul buton de golire), ca sa nu
+    /// pierzi din greseala mesaje esuate pe care voiai sa le revezi.
     /// </summary>
     public void ClearAllSubscribers()
     {
@@ -242,7 +207,6 @@ public sealed class BrokerServer : IDisposable
         _subscriptions.Clear();
         _pendingMessages.Clear();
         _deliveryAttempts.Clear();
-        SaveToXml();
         WriteActivity("SYSTEM", "Toti abonatii au fost eliminati; brokerul a fost resetat la 0 receivere.");
     }
 
@@ -263,7 +227,6 @@ public sealed class BrokerServer : IDisposable
 
         string attemptKey = $"{clientId}:{message.Id}";
         HandleDeliveryFailure(clientId, queue, message, attemptKey, "Esec simulat manual (test).");
-        SaveToXml();
         return true;
     }
 
@@ -384,19 +347,22 @@ public sealed class BrokerServer : IDisposable
             .Select(item => item.Key)
             .ToArray();
 
-        if (recipients.Length == 0)
-        {
-            SendResponse(stream, false, "NO_SUBSCRIBERS", "Nu exista abonati pentru topicul indicat; mesajul nu a fost retinut.");
-            return;
-        }
-
         foreach (string clientId in recipients)
         {
             _pendingMessages.GetOrAdd(clientId, _ => new ConcurrentQueue<Message>()).Enqueue(message);
             _ = Task.Run(() => DeliverPendingMessagesForClient(clientId));
         }
 
-        SaveToXml();
+        // Publicarea e acceptata indiferent daca exista sau nu abonati in acest moment: sender-ul
+        // nu trebuie sa stie (si nici sa-i pese) cine asculta pe topic - doar brokerul stie asta.
+        // Daca nu e nimeni abonat, mesajul pur si simplu nu are unde sa fie livrat momentan.
+        if (recipients.Length == 0)
+        {
+            SendResponse(stream, true, "PUBLISH_ACCEPTED", "Mesaj acceptat, dar momentan nu exista niciun abonat pe acest topic.");
+            WriteActivity("PUBLISH", $"Topic „{packet.Topic}” publicat, dar fara niciun abonat.");
+            return;
+        }
+
         SendResponse(stream, true, "PUBLISH_ACCEPTED", "Mesaj validat si stocat pentru livrare.");
         WriteActivity("PUBLISH", $"Topic „{packet.Topic}” trimis catre {recipients.Length} abonat(i).");
     }
@@ -431,10 +397,22 @@ public sealed class BrokerServer : IDisposable
             return;
         }
 
+        // Nu are sens sa accepti o a doua conexiune activa cu exact acelasi ClientId si exact
+        // aceleasi topicuri cat timp prima e inca vie - ar insemna doi receiveri identici care s-ar
+        // calca unul pe altul pe acelasi canal de livrare. O reconectare normala (dupa deconectare,
+        // sau cu topicuri diferite) ramane permisa mai jos.
+        if (_activeSockets.ContainsKey(packet.ClientId) &&
+            _subscriptions.TryGetValue(packet.ClientId, out HashSet<string>? currentTopics) &&
+            currentTopics.SetEquals(topics))
+        {
+            SendResponse(stream, false, "ALREADY_SUBSCRIBED",
+                $"'{packet.ClientId}' este deja conectat activ cu exact aceleasi topicuri: {string.Join(", ", topics.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))}.");
+            return;
+        }
+
         _subscriptions[packet.ClientId] = topics;
         _activeSockets[packet.ClientId] = client;
         _activeReaders[packet.ClientId] = reader;
-        SaveToXml();
         string joinedTopics = string.Join(", ", topics.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase));
         SendResponse(stream, true, "SUBSCRIBED", $"Abonat la topicurile: {joinedTopics}.");
         WriteActivity("SUBSCRIBE", $"{packet.ClientId} este abonat la „{joinedTopics}”.");
@@ -462,22 +440,33 @@ public sealed class BrokerServer : IDisposable
             return;
         }
 
-        if (!_subscriptions.ContainsKey(packet.ClientId))
+        if (!_subscriptions.TryGetValue(packet.ClientId, out HashSet<string>? existingTopics))
         {
             SendResponse(stream, false, "UNKNOWN_CLIENT", "Clientul trebuie sa fie deja abonat (SUBSCRIBE) inainte de a adauga topicuri noi.");
             return;
         }
 
-        HashSet<string> newTopics = ParseTopics(packet.Topic);
-        if (newTopics.Count == 0)
+        HashSet<string> requestedTopics = ParseTopics(packet.Topic);
+        if (requestedTopics.Count == 0)
         {
             SendResponse(stream, false, "INVALID_PACKET", "Cel putin un topic valid este obligatoriu.");
             return;
         }
 
+        // Nu are sens sa "adaugi" un topic la care esti deja abonat cu acelasi ClientId - il
+        // filtram, ca sa nu se ceara degeaba o schimbare care nu schimba nimic. Daca niciunul
+        // dintre topicurile cerute nu e cu adevarat nou, cererea e respinsa in intregime.
+        string[] newTopics = requestedTopics.Where(topic => !existingTopics.Contains(topic)).ToArray();
+        if (newTopics.Length == 0)
+        {
+            SendResponse(stream, false, "ALREADY_SUBSCRIBED",
+                $"Esti deja abonat la: {string.Join(", ", requestedTopics.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))}. Nu s-a adaugat nimic nou.");
+            return;
+        }
+
         HashSet<string> topics = _subscriptions.AddOrUpdate(
             packet.ClientId,
-            _ => newTopics,
+            _ => new HashSet<string>(newTopics, StringComparer.OrdinalIgnoreCase),
             (_, existing) =>
             {
                 var merged = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
@@ -485,10 +474,10 @@ public sealed class BrokerServer : IDisposable
                 return merged;
             });
 
-        SaveToXml();
         string joinedTopics = string.Join(", ", topics.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase));
-        SendResponse(stream, true, "TOPIC_ADDED", $"Topicuri curente: {joinedTopics}.");
-        WriteActivity("SUBSCRIBE", $"{packet.ClientId} a adaugat topicul(urile) „{string.Join(", ", newTopics)}”. Total abonamente: {joinedTopics}.");
+        string joinedNewTopics = string.Join(", ", newTopics.OrderBy(t => t, StringComparer.OrdinalIgnoreCase));
+        SendResponse(stream, true, "TOPIC_ADDED", $"Adaugat: {joinedNewTopics}. Topicuri curente: {joinedTopics}.");
+        WriteActivity("SUBSCRIBE", $"{packet.ClientId} a adaugat topicul(urile) „{joinedNewTopics}”. Total abonamente: {joinedTopics}.");
         DeliverPendingMessagesForClient(packet.ClientId);
     }
 
@@ -540,8 +529,6 @@ public sealed class BrokerServer : IDisposable
                     break;
                 }
             }
-
-            SaveToXml();
         }
         finally
         {
@@ -671,105 +658,6 @@ public sealed class BrokerServer : IDisposable
             _activeSockets.TryRemove(clientId, out _);
             _activeReaders.TryRemove(clientId, out _);
             WriteActivity("OFFLINE", $"{clientId} este deconectat.");
-        }
-    }
-
-    private void SaveToXml()
-    {
-        lock (_fileLock)
-        {
-            try
-            {
-                BrokerState state = new()
-                {
-                    Subscriptions = _subscriptions.Select(item => new SubscriptionItem
-                    {
-                        ClientId = item.Key,
-                        Topics = item.Value.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase).ToList()
-                    }).ToList(),
-                    PendingMessages = _pendingMessages.SelectMany(queue => queue.Value.Select(message => new PendingMessageItem { ClientId = queue.Key, Message = message })).ToList(),
-                    DeadLetterMessages = _deadLetterMessages.Values.Select(record => new DeadLetterItem
-                    {
-                        Id = record.Id,
-                        ClientId = record.ClientId,
-                        Message = record.Message,
-                        Reason = record.Reason,
-                        FailedAt = record.FailedAt,
-                        Attempts = record.Attempts
-                    }).ToList()
-                };
-                string temporaryPath = _xmlPath + ".tmp";
-                XmlSerializer serializer = new(typeof(BrokerState));
-                using (StreamWriter writer = new(temporaryPath, false, Utf8))
-                {
-                    serializer.Serialize(writer, state);
-                }
-                File.Move(temporaryPath, _xmlPath, true);
-            }
-            catch (Exception ex)
-            {
-                WriteActivity("ERROR", $"Salvarea starii a esuat: {ex.Message}");
-            }
-        }
-    }
-
-    private void LoadFromXml()
-    {
-        if (!File.Exists(_xmlPath))
-        {
-            return;
-        }
-
-        try
-        {
-            XmlSerializer serializer = new(typeof(BrokerState));
-            using StreamReader reader = new(_xmlPath, Utf8);
-            BrokerState? state = serializer.Deserialize(reader) as BrokerState;
-            if (state is null)
-            {
-                return;
-            }
-
-            foreach (SubscriptionItem subscription in state.Subscriptions.Where(item => !string.IsNullOrWhiteSpace(item.ClientId)))
-            {
-                var topics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (string topic in subscription.Topics.Where(topic => !string.IsNullOrWhiteSpace(topic)))
-                {
-                    topics.Add(topic.Trim());
-                }
-                // Compatibilitate cu fisiere vechi (dinainte de suportul multi-topic), care foloseau campul singular Topic.
-                if (!string.IsNullOrWhiteSpace(subscription.Topic))
-                {
-                    topics.Add(subscription.Topic.Trim());
-                }
-
-                if (topics.Count > 0)
-                {
-                    _subscriptions[subscription.ClientId] = topics;
-                }
-            }
-            foreach (PendingMessageItem item in state.PendingMessages.Where(item => !string.IsNullOrWhiteSpace(item.ClientId)))
-            {
-                _pendingMessages.GetOrAdd(item.ClientId, _ => new ConcurrentQueue<Message>()).Enqueue(item.Message);
-            }
-            foreach (DeadLetterItem item in state.DeadLetterMessages.Where(item => !string.IsNullOrWhiteSpace(item.ClientId)))
-            {
-                string id = string.IsNullOrWhiteSpace(item.Id) ? Guid.NewGuid().ToString() : item.Id;
-                _deadLetterMessages[id] = new DeadLetterRecord
-                {
-                    Id = id,
-                    ClientId = item.ClientId,
-                    Message = item.Message,
-                    Reason = item.Reason,
-                    FailedAt = item.FailedAt,
-                    Attempts = item.Attempts
-                };
-            }
-            WriteActivity("STORAGE", $"Restaurate {state.Subscriptions.Count} abonamente, {state.PendingMessages.Count} mesaje pending si {state.DeadLetterMessages.Count} in dead-letter.");
-        }
-        catch (InvalidOperationException)
-        {
-            WriteActivity("ERROR", "Fisierul XML de stocare este invalid.");
         }
     }
 
