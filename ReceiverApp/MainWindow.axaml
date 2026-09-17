@@ -16,6 +16,8 @@
       <Setter Property="CornerRadius" Value="8"/>
       <Setter Property="Padding" Value="10,8"/>
       <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Foreground" Value="Black"/>
+      <Setter Property="CaretBrush" Value="Black"/>
     </Style>
     <Style Selector="Button.primary">
       <Setter Property="Background" Value="#155EEF"/>
@@ -24,6 +26,15 @@
       <Setter Property="Padding" Value="14,10"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="Foreground" Value="#344054"/>
+      <Setter Property="BorderBrush" Value="#D0D5DD"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="8"/>
+      <Setter Property="Padding" Value="14,10"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
   </Window.Styles>
   <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="24">
@@ -41,10 +52,6 @@
       <StackPanel Spacing="11">
         <TextBlock Text="ABONARE" FontWeight="Bold" Foreground="#101828"/>
         <StackPanel Spacing="4">
-          <TextBlock Text="ADRESA BROKER" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
-          <TextBox Name="BrokerHostBox" Text="127.0.0.1"/>
-        </StackPanel>
-        <StackPanel Spacing="4">
           <TextBlock Text="ID CLIENT" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
           <TextBox Name="ClientIdBox" Text="receiver_1"/>
         </StackPanel>
@@ -57,6 +64,16 @@
           <Ellipse Name="StatusDot" Width="9" Height="9" Fill="#98A2B3" VerticalAlignment="Center"/>
           <TextBlock Name="StatusText" FontSize="12" Text="Neconectat" Foreground="#667085" TextWrapping="Wrap"/>
         </StackPanel>
+        <Border BorderBrush="#EAECF0" BorderThickness="0,1,0,0" Padding="0,11,0,0" Margin="0,2,0,0">
+          <StackPanel Spacing="8">
+            <TextBlock Text="ADAUGA TOPIC SUPLIMENTAR" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox Name="NewTopicBox" Watermark="ex: PAD" IsEnabled="False"/>
+              <Button Grid.Column="1" Name="AddTopicButton" Classes="secondary" Content="Adauga" Margin="8,0,0,0" IsEnabled="False" Click="OnAddTopicClick"/>
+            </Grid>
+            <TextBlock Name="TopicsText" FontSize="11.5" Foreground="#667085" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
       </StackPanel>
     </Border>
 

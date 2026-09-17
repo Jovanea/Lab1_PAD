@@ -1,64 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <BrokerState xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Subscriptions>
-    <SubscriptionItem>
-      <ClientId>receiver_1 s</ClientId>
-      <Topic>Curs</Topic>
-    </SubscriptionItem>
-    <SubscriptionItem>
-      <ClientId>receiver_1</ClientId>
-      <Topic>Curs</Topic>
-    </SubscriptionItem>
-    <SubscriptionItem>
-      <ClientId>receiver_2</ClientId>
-      <Topic>Curs</Topic>
-    </SubscriptionItem>
-  </Subscriptions>
-  <PendingMessages>
-    <PendingMessageItem>
-      <ClientId>receiver_1 s</ClientId>
-      <Message>
-        <Id>0b468f6d-a199-4d38-81c6-05d26df8ebad</Id>
-        <Topic>Curs</Topic>
-        <Payload>sad</Payload>
-        <Timestamp>2026-09-16T20:30:04.9982353Z</Timestamp>
-      </Message>
-    </PendingMessageItem>
-    <PendingMessageItem>
-      <ClientId>receiver_1</ClientId>
-      <Message>
-        <Id>01749e40-bbb6-4d83-aed1-c12a5a01bf00</Id>
-        <Topic>Curs</Topic>
-        <Payload>sdf</Payload>
-        <Timestamp>2026-09-16T20:28:27.2928844Z</Timestamp>
-      </Message>
-    </PendingMessageItem>
-    <PendingMessageItem>
-      <ClientId>receiver_1</ClientId>
-      <Message>
-        <Id>0b468f6d-a199-4d38-81c6-05d26df8ebad</Id>
-        <Topic>Curs</Topic>
-        <Payload>sad</Payload>
-        <Timestamp>2026-09-16T20:30:04.9982353Z</Timestamp>
-      </Message>
-    </PendingMessageItem>
-    <PendingMessageItem>
-      <ClientId>receiver_2</ClientId>
-      <Message>
-        <Id>01749e40-bbb6-4d83-aed1-c12a5a01bf00</Id>
-        <Topic>Curs</Topic>
-        <Payload>sdf</Payload>
-        <Timestamp>2026-09-16T20:28:27.2928844Z</Timestamp>
-      </Message>
-    </PendingMessageItem>
-    <PendingMessageItem>
-      <ClientId>receiver_2</ClientId>
-      <Message>
-        <Id>0b468f6d-a199-4d38-81c6-05d26df8ebad</Id>
-        <Topic>Curs</Topic>
-        <Payload>sad</Payload>
-        <Timestamp>2026-09-16T20:30:04.9982353Z</Timestamp>
-      </Message>
-    </PendingMessageItem>
-  </PendingMessages>
+  <Subscriptions />
+  <PendingMessages />
+  <DeadLetterMessages />
 </BrokerState>

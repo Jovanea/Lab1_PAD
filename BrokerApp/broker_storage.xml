@@ -2,17 +2,18 @@
 <BrokerState xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Subscriptions>
     <SubscriptionItem>
-      <ClientId>integration_receiver</ClientId>
-      <Topic>Test</Topic>
-    </SubscriptionItem>
-    <SubscriptionItem>
       <ClientId>receiver_1</ClientId>
-      <Topic>Cursa</Topic>
+      <Topics>
+        <string>BD</string>
+      </Topics>
     </SubscriptionItem>
     <SubscriptionItem>
       <ClientId>receiver_2</ClientId>
-      <Topic>Cursa</Topic>
+      <Topics>
+        <string>PAD</string>
+      </Topics>
     </SubscriptionItem>
   </Subscriptions>
   <PendingMessages />
+  <DeadLetterMessages />
 </BrokerState>

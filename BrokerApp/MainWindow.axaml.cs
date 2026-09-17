@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -12,6 +13,7 @@ public partial class MainWindow : Window
     private readonly BrokerServer _server = new();
     private readonly ObservableCollection<SubscriberRow> _subscribers = new();
     private readonly ObservableCollection<ActivityRow> _activities = new();
+    private readonly ObservableCollection<DeadLetterRow> _deadLetters = new();
     private readonly DispatcherTimer _refreshTimer;
 
     public MainWindow()
@@ -20,6 +22,7 @@ public partial class MainWindow : Window
         PortBox.Text = EnvironmentSettings.BrokerPort.ToString();
         SubscribersList.ItemsSource = _subscribers;
         LogList.ItemsSource = _activities;
+        DeadLetterList.ItemsSource = _deadLetters;
         _server.Activity += OnBrokerActivity;
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _refreshTimer.Tick += (_, _) => RefreshSnapshot();
@@ -90,10 +93,16 @@ public partial class MainWindow : Window
         SubscriberCountText.Text = snapshot.SubscriberCount.ToString();
         ConnectedCountText.Text = snapshot.ConnectedCount.ToString();
         PendingCountText.Text = snapshot.PendingCount.ToString();
+        DeadLetterCountText.Text = snapshot.DeadLetterCount.ToString();
         _subscribers.Clear();
         foreach (BrokerSubscriber subscriber in snapshot.Subscribers)
         {
-            _subscribers.Add(new SubscriberRow(subscriber));
+            _subscribers.Add(new SubscriberRow(subscriber, OnSimulateDeliveryFailure));
+        }
+        _deadLetters.Clear();
+        foreach (BrokerDeadLetter entry in snapshot.DeadLetters)
+        {
+            _deadLetters.Add(new DeadLetterRow(entry, OnRequeueDeadLetter, OnDiscardDeadLetter));
         }
     }
 
@@ -103,20 +112,52 @@ public partial class MainWindow : Window
         StatusDot.Fill = color;
     }
 
+    private void OnRequeueDeadLetter(string id)
+    {
+        _server.RequeueDeadLetter(id);
+        RefreshSnapshot();
+    }
+
+    private void OnDiscardDeadLetter(string id)
+    {
+        _server.DiscardDeadLetter(id);
+        RefreshSnapshot();
+    }
+
+    private void OnClearDeadLettersClick(object? sender, RoutedEventArgs e)
+    {
+        _server.ClearDeadLetters();
+        RefreshSnapshot();
+    }
+
+    private void OnClearSubscribersClick(object? sender, RoutedEventArgs e)
+    {
+        _server.ClearAllSubscribers();
+        RefreshSnapshot();
+    }
+
+    private void OnSimulateDeliveryFailure(string clientId)
+    {
+        _server.SimulateDeliveryFailure(clientId);
+        RefreshSnapshot();
+    }
+
     private sealed class SubscriberRow
     {
-        public SubscriberRow(BrokerSubscriber subscriber)
+        public SubscriberRow(BrokerSubscriber subscriber, Action<string> simulateFailure)
         {
             ClientId = subscriber.ClientId;
             Topic = subscriber.Topic;
             State = subscriber.IsConnected ? "Conectat" : "Offline";
             StateColor = subscriber.IsConnected ? Brushes.SeaGreen : Brushes.Gray;
+            SimulateFailureCommand = new RelayCommand(() => simulateFailure(subscriber.ClientId));
         }
 
         public string ClientId { get; }
         public string Topic { get; }
         public string State { get; }
         public IBrush StateColor { get; }
+        public ICommand SimulateFailureCommand { get; }
     }
 
     private sealed class ActivityRow
@@ -133,6 +174,8 @@ public partial class MainWindow : Window
                 "PUBLISH" => Brushes.DodgerBlue,
                 "SUBSCRIBE" => Brushes.MediumPurple,
                 "WAITING" => Brushes.DarkOrange,
+                "DEAD_LETTER" => Brushes.Crimson,
+                "REQUEUE" => Brushes.DodgerBlue,
                 _ => Brushes.SlateGray
             };
         }
@@ -141,5 +184,42 @@ public partial class MainWindow : Window
         public string Category { get; }
         public string Detail { get; }
         public IBrush BadgeColor { get; }
+    }
+
+    private sealed class DeadLetterRow
+    {
+        public DeadLetterRow(BrokerDeadLetter entry, Action<string> requeue, Action<string> discard)
+        {
+            Id = entry.Id;
+            ClientId = entry.ClientId;
+            Topic = entry.Topic;
+            Payload = entry.Payload;
+            Reason = entry.Reason;
+            Meta = $"{entry.FailedAt:HH:mm:ss} · incercari: {entry.Attempts}";
+            RequeueCommand = new RelayCommand(() => requeue(entry.Id));
+            DiscardCommand = new RelayCommand(() => discard(entry.Id));
+        }
+
+        public string Id { get; }
+        public string ClientId { get; }
+        public string Topic { get; }
+        public string Payload { get; }
+        public string Reason { get; }
+        public string Meta { get; }
+        public ICommand RequeueCommand { get; }
+        public ICommand DiscardCommand { get; }
+    }
+
+    private sealed class RelayCommand : ICommand
+    {
+        private readonly Action _execute;
+
+        public RelayCommand(Action execute) => _execute = execute;
+
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+
+        public bool CanExecute(object? parameter) => true;
+
+        public void Execute(object? parameter) => _execute();
     }
 }

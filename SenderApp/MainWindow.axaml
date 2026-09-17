@@ -6,7 +6,7 @@
         x:Class="SenderApp.MainWindow" Title="Message Hub — Sender"
         Width="480" Height="700" MinWidth="390" MinHeight="540" Background="#F5F7FB">
   <Window.Styles>
-    <Style Selector="TextBox"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#D8E1ED"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="13"/></Style>
+    <Style Selector="TextBox"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#D8E1ED"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="Black"/><Setter Property="CaretBrush" Value="Black"/></Style>
     <Style Selector="Button.primary"><Setter Property="Background" Value="#155EEF"/><Setter Property="Foreground" Value="White"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="14,10"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="HorizontalContentAlignment" Value="Center"/></Style>
     <Style Selector="Button.primary:disabled /template/ ContentPresenter"><Setter Property="Background" Value="#A4BCFD"/></Style>
   </Window.Styles>
@@ -18,7 +18,6 @@
     <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="17" BorderBrush="#E4E7EC" BorderThickness="1" Margin="0,0,0,14">
       <StackPanel Spacing="11">
         <TextBlock Text="COMPUNE MESAJ" FontWeight="Bold" Foreground="#101828"/>
-        <StackPanel Spacing="4"><TextBlock Text="ADRESA BROKER" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/><TextBox Name="BrokerHostBox" Text="127.0.0.1"/></StackPanel>
         <StackPanel Spacing="4">
           <TextBlock Text="TOPIC" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
           <Grid ColumnDefinitions="*,132">

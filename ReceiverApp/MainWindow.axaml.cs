@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -45,25 +47,30 @@ namespace ReceiverApp
     public partial class MainWindow : Window
     {
         private readonly ObservableCollection<ReceivedEntry> _feed = new();
+        private readonly HashSet<string> _subscribedTopics = new(StringComparer.OrdinalIgnoreCase);
+        private string _brokerHost = string.Empty;
+        private string _clientId = string.Empty;
 
         public MainWindow()
         {
             InitializeComponent();
-            BrokerHostBox.Text = EnvironmentSettings.BrokerHost;
             FeedList.ItemsSource = _feed;
         }
 
         private void OnConnectClick(object? sender, RoutedEventArgs e)
         {
-            string brokerHost = BrokerHostBox.Text?.Trim() ?? string.Empty;
+            string brokerHost = EnvironmentSettings.BrokerHost;
             string clientId = ClientIdBox.Text?.Trim() ?? string.Empty;
             string topic = TopicBox.Text?.Trim() ?? string.Empty;
 
-            if (string.IsNullOrWhiteSpace(brokerHost) || string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(topic))
+            if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(topic))
             {
-                SetStatus("Adresa brokerului, Client ID și Topic sunt obligatorii.", Brushes.OrangeRed);
+                SetStatus("Client ID și Topic sunt obligatorii.", Brushes.OrangeRed);
                 return;
             }
+
+            _brokerHost = brokerHost;
+            _clientId = clientId;
 
             ConnectButton.IsEnabled = false;
             ClientIdBox.IsEnabled = false;
@@ -71,6 +78,66 @@ namespace ReceiverApp
             SetStatus("Se conectează...", Brushes.Gray);
 
             Task.Run(() => ConnectAndListen(brokerHost, clientId, topic));
+        }
+
+        private void OnAddTopicClick(object? sender, RoutedEventArgs e)
+        {
+            string newTopic = NewTopicBox.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(newTopic))
+            {
+                return;
+            }
+
+            AddTopicButton.IsEnabled = false;
+            Task.Run(() => SendAddTopicRequest(newTopic));
+        }
+
+        private void SendAddTopicRequest(string newTopic)
+        {
+            try
+            {
+                using TcpClient client = new TcpClient(_brokerHost, EnvironmentSettings.BrokerPort);
+                using NetworkStream stream = client.GetStream();
+                using StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
+                using StreamReader reader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
+
+                var packet = new Packet { Action = "ADD_TOPIC", Topic = newTopic, ClientId = _clientId };
+                writer.WriteLine(JsonSerializer.Serialize(packet));
+
+                stream.ReadTimeout = 5000;
+                BrokerResponse? response = JsonSerializer.Deserialize<BrokerResponse>(reader.ReadLine() ?? string.Empty);
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (response?.Success == true)
+                    {
+                        _subscribedTopics.Add(newTopic);
+                        NewTopicBox.Text = string.Empty;
+                        SetStatus(response.Detail, Brushes.SeaGreen);
+                        RefreshTopicsText();
+                    }
+                    else
+                    {
+                        SetStatus(response?.Detail ?? "Adaugarea topicului a eșuat.", Brushes.OrangeRed);
+                    }
+                    AddTopicButton.IsEnabled = true;
+                });
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    SetStatus($"Eroare la adaugarea topicului: {ex.Message}", Brushes.OrangeRed);
+                    AddTopicButton.IsEnabled = true;
+                });
+            }
+        }
+
+        private void RefreshTopicsText()
+        {
+            TopicsText.Text = _subscribedTopics.Count == 0
+                ? string.Empty
+                : $"Abonat la: {string.Join(", ", _subscribedTopics.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))}";
         }
 
         private void ConnectAndListen(string brokerHost, string clientId, string topic)
@@ -94,7 +161,13 @@ namespace ReceiverApp
                 stream.ReadTimeout = Timeout.Infinite;
 
                 Dispatcher.UIThread.Post(() =>
-                    SetStatus($"Conectat ca '{clientId}' pe topicul '{topic}'", Brushes.SeaGreen));
+                {
+                    _subscribedTopics.Add(topic);
+                    NewTopicBox.IsEnabled = true;
+                    AddTopicButton.IsEnabled = true;
+                    RefreshTopicsText();
+                    SetStatus($"Conectat ca '{clientId}'. {response.Detail}", Brushes.SeaGreen);
+                });
 
                 while (true)
                 {
@@ -140,6 +213,10 @@ namespace ReceiverApp
                 ConnectButton.IsEnabled = true;
                 ClientIdBox.IsEnabled = true;
                 TopicBox.IsEnabled = true;
+                NewTopicBox.IsEnabled = false;
+                AddTopicButton.IsEnabled = false;
+                _subscribedTopics.Clear();
+                RefreshTopicsText();
             });
         }
 

@@ -57,7 +57,6 @@ namespace SenderApp
         public MainWindow()
         {
             InitializeComponent();
-            BrokerHostBox.Text = EnvironmentSettings.BrokerHost;
             HistoryList.ItemsSource = _history;
             TopicDropdown.ItemsSource = _topics;
             _topicRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -91,14 +90,7 @@ namespace SenderApp
             StatusText.Text = "Se trimite...";
             StatusText.Foreground = Avalonia.Media.Brushes.Gray;
 
-            string brokerHost = BrokerHostBox.Text?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(brokerHost))
-            {
-                StatusText.Text = "Adresa brokerului este obligatorie.";
-                StatusText.Foreground = Avalonia.Media.Brushes.OrangeRed;
-                SendButton.IsEnabled = true;
-                return;
-            }
+            string brokerHost = EnvironmentSettings.BrokerHost;
 
             (bool success, string detail) = await Task.Run(() => SendMessage(brokerHost, topic, payload));
 
@@ -130,12 +122,7 @@ namespace SenderApp
                 return;
             }
 
-            string brokerHost = BrokerHostBox.Text?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(brokerHost))
-            {
-                _topics.Clear();
-                return;
-            }
+            string brokerHost = EnvironmentSettings.BrokerHost;
 
             _isRefreshingTopics = true;
             try
