@@ -93,6 +93,7 @@ public partial class MainWindow : Window
         SubscriberCountText.Text = snapshot.SubscriberCount.ToString();
         ConnectedCountText.Text = snapshot.ConnectedCount.ToString();
         PendingCountText.Text = snapshot.PendingCount.ToString();
+        OrphanCountText.Text = snapshot.OrphanCount.ToString();
         DeadLetterCountText.Text = snapshot.DeadLetterCount.ToString();
         _subscribers.Clear();
         foreach (BrokerSubscriber subscriber in snapshot.Subscribers)

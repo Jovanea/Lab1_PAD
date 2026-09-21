@@ -184,8 +184,6 @@ namespace ReceiverApp
                         var msg = JsonSerializer.Deserialize<Message>(rawData);
                         if (msg != null)
                         {
-                            // Confirmăm către broker că mesajul a fost efectiv primit,
-                            // altfel brokerul nu poate ști dacă a fost livrat cu adevărat.
                             writer.WriteLine($"ACK:{msg.Id}");
 
                             Dispatcher.UIThread.Post(() =>
@@ -201,6 +199,11 @@ namespace ReceiverApp
                     }
                     catch { }
                 }
+            }
+            catch (InvalidOperationException ex)
+            {
+                Dispatcher.UIThread.Post(() =>
+                    SetStatus($"Abonare respinsa: {ex.Message}", Brushes.OrangeRed));
             }
             catch (Exception ex)
             {

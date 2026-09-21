@@ -49,7 +49,7 @@ public sealed class DeadLetterRecord
 public record BrokerActivity(string Category, string Detail, DateTime Time);
 public record BrokerSubscriber(string ClientId, string Topic, bool IsConnected);
 public record BrokerDeadLetter(string Id, string ClientId, string Topic, string Payload, string Reason, int Attempts, DateTime FailedAt);
-public record BrokerSnapshot(int SubscriberCount, int ConnectedCount, int PendingCount, IReadOnlyList<BrokerSubscriber> Subscribers, int DeadLetterCount, IReadOnlyList<BrokerDeadLetter> DeadLetters);
+public record BrokerSnapshot(int SubscriberCount, int ConnectedCount, int PendingCount, IReadOnlyList<BrokerSubscriber> Subscribers, int DeadLetterCount, IReadOnlyList<BrokerDeadLetter> DeadLetters, int OrphanCount);
 
 public sealed class BrokerServer : IDisposable
 {
@@ -63,6 +63,9 @@ public sealed class BrokerServer : IDisposable
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _deliveryLocks = new();
     private readonly ConcurrentDictionary<string, int> _deliveryAttempts = new();
     private readonly ConcurrentDictionary<string, DeadLetterRecord> _deadLetterMessages = new();
+
+    // mesaje publicate fara niciun abonat, pana cineva se aboneaza la topicul lor
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<Message>> _orphanMessages = new(StringComparer.OrdinalIgnoreCase);
     private TcpListener? _listener;
     private CancellationTokenSource? _cancellation;
 
@@ -103,15 +106,13 @@ public sealed class BrokerServer : IDisposable
         _activeSockets.Clear();
         _activeReaders.Clear();
 
-        // Brokerul tine toata starea doar in memorie (fara persistenta pe disc): la oprire,
-        // se sterge complet totul, ca la urmatoarea pornire sa inceapa mereu curat
-        // (0 abonati, 0 mesaje pending, 0 dead-letter), fara "supravietuitori" din sesiuni vechi.
         _subscriptions.Clear();
         _pendingMessages.Clear();
         _deliveryAttempts.Clear();
         _deadLetterMessages.Clear();
+        _orphanMessages.Clear();
 
-        WriteActivity("SYSTEM", "Broker oprit; toata starea a fost stearsa (nu exista persistenta pe disc).");
+        WriteActivity("SYSTEM", "Broker oprit; toata starea a fost stearsa.");
         return Task.CompletedTask;
     }
 
@@ -136,10 +137,10 @@ public sealed class BrokerServer : IDisposable
             _pendingMessages.Sum(item => item.Value.Count),
             subscribers,
             deadLetters.Count,
-            deadLetters);
+            deadLetters,
+            _orphanMessages.Sum(item => item.Value.Count));
     }
 
-    /// <summary>Repune un mesaj din dead-letter inapoi in coada de livrare a clientului sau.</summary>
     public bool RequeueDeadLetter(string id)
     {
         if (!_deadLetterMessages.TryRemove(id, out DeadLetterRecord? record))
@@ -153,7 +154,6 @@ public sealed class BrokerServer : IDisposable
         return true;
     }
 
-    /// <summary>Sterge definitiv un mesaj din dead-letter, fara a-l mai livra.</summary>
     public bool DiscardDeadLetter(string id)
     {
         if (!_deadLetterMessages.TryRemove(id, out _))
@@ -165,7 +165,6 @@ public sealed class BrokerServer : IDisposable
         return true;
     }
 
-    /// <summary>Goleste in intregime coada de dead-letter.</summary>
     public void ClearDeadLetters()
     {
         if (_deadLetterMessages.IsEmpty)
@@ -177,12 +176,6 @@ public sealed class BrokerServer : IDisposable
         WriteActivity("DEAD_LETTER", "Coada dead-letter a fost golita.");
     }
 
-    /// <summary>
-    /// Elimina toti abonatii cunoscuti: inchide conexiunile active (receiverele vor vedea
-    /// conexiunea inchisa si vor trebui sa se re-aboneze) si sterge toate abonamentele si mesajele
-    /// pending asociate lor. Dead-letter-ul nu este atins (are propriul buton de golire), ca sa nu
-    /// pierzi din greseala mesaje esuate pe care voiai sa le revezi.
-    /// </summary>
     public void ClearAllSubscribers()
     {
         if (_subscriptions.IsEmpty && _activeSockets.IsEmpty && _pendingMessages.IsEmpty)
@@ -198,7 +191,6 @@ public sealed class BrokerServer : IDisposable
             }
             catch (Exception)
             {
-                // Ignoram; oricum eliminam toate referintele mai jos.
             }
         }
 
@@ -210,13 +202,6 @@ public sealed class BrokerServer : IDisposable
         WriteActivity("SYSTEM", "Toti abonatii au fost eliminati; brokerul a fost resetat la 0 receivere.");
     }
 
-    /// <summary>
-    /// Declanseaza manual acelasi cod de esec de livrare pe care l-ar produce o conexiune reala cazuta
-    /// (<see cref="HandleDeliveryFailure"/>), pentru cel mai vechi mesaj pending al clientului dat.
-    /// Util pentru a testa dead-letter queue-ul fara sa trebuiasca sa simulezi o cadere reala de retea
-    /// (greu de reprodus fiabil pe localhost). Dupa <see cref="MaxDeliveryAttempts"/> apeluri pe acelasi
-    /// mesaj, acesta ajunge in dead-letter exact ca intr-un scenariu real.
-    /// </summary>
     public bool SimulateDeliveryFailure(string clientId)
     {
         if (!_pendingMessages.TryGetValue(clientId, out ConcurrentQueue<Message>? queue) || !queue.TryPeek(out Message? message))
@@ -323,11 +308,9 @@ public sealed class BrokerServer : IDisposable
             }
             catch (IOException)
             {
-                // Mesajele nelivrate raman in coada persistenta.
             }
             catch (SocketException)
             {
-                // Mesajele nelivrate raman in coada persistenta.
             }
         }
     }
@@ -353,13 +336,11 @@ public sealed class BrokerServer : IDisposable
             _ = Task.Run(() => DeliverPendingMessagesForClient(clientId));
         }
 
-        // Publicarea e acceptata indiferent daca exista sau nu abonati in acest moment: sender-ul
-        // nu trebuie sa stie (si nici sa-i pese) cine asculta pe topic - doar brokerul stie asta.
-        // Daca nu e nimeni abonat, mesajul pur si simplu nu are unde sa fie livrat momentan.
         if (recipients.Length == 0)
         {
-            SendResponse(stream, true, "PUBLISH_ACCEPTED", "Mesaj acceptat, dar momentan nu exista niciun abonat pe acest topic.");
-            WriteActivity("PUBLISH", $"Topic „{packet.Topic}” publicat, dar fara niciun abonat.");
+            _orphanMessages.GetOrAdd(packet.Topic, _ => new ConcurrentQueue<Message>()).Enqueue(message);
+            SendResponse(stream, true, "PUBLISH_ACCEPTED", "Mesaj acceptat, dar momentan nu exista niciun abonat pe acest topic; va fi livrat cand cineva se aboneaza.");
+            WriteActivity("PUBLISH", $"Topic „{packet.Topic}” publicat, dar fara niciun abonat momentan (mesaj pastrat pentru viitor).");
             return;
         }
 
@@ -389,7 +370,6 @@ public sealed class BrokerServer : IDisposable
             return;
         }
 
-        // Un receiver se poate abona la mai multe topicuri deodata, separate prin virgula in campul Topic.
         HashSet<string> topics = ParseTopics(packet.Topic);
         if (topics.Count == 0)
         {
@@ -397,22 +377,20 @@ public sealed class BrokerServer : IDisposable
             return;
         }
 
-        // Nu are sens sa accepti o a doua conexiune activa cu exact acelasi ClientId si exact
-        // aceleasi topicuri cat timp prima e inca vie - ar insemna doi receiveri identici care s-ar
-        // calca unul pe altul pe acelasi canal de livrare. O reconectare normala (dupa deconectare,
-        // sau cu topicuri diferite) ramane permisa mai jos.
-        if (_activeSockets.ContainsKey(packet.ClientId) &&
-            _subscriptions.TryGetValue(packet.ClientId, out HashSet<string>? currentTopics) &&
-            currentTopics.SetEquals(topics))
+        if (_activeSockets.ContainsKey(packet.ClientId))
         {
-            SendResponse(stream, false, "ALREADY_SUBSCRIBED",
-                $"'{packet.ClientId}' este deja conectat activ cu exact aceleasi topicuri: {string.Join(", ", topics.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))}.");
+            SendResponse(stream, false, "CLIENT_ID_TAKEN",
+                $"Numele de client '{packet.ClientId}' este deja folosit de un receiver conectat activ. Alege alt Client ID.");
             return;
         }
 
         _subscriptions[packet.ClientId] = topics;
         _activeSockets[packet.ClientId] = client;
         _activeReaders[packet.ClientId] = reader;
+        foreach (string topic in topics)
+        {
+            ClaimOrphanMessagesForTopic(packet.ClientId, topic);
+        }
         string joinedTopics = string.Join(", ", topics.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase));
         SendResponse(stream, true, "SUBSCRIBED", $"Abonat la topicurile: {joinedTopics}.");
         WriteActivity("SUBSCRIBE", $"{packet.ClientId} este abonat la „{joinedTopics}”.");
@@ -426,12 +404,6 @@ public sealed class BrokerServer : IDisposable
         RemoveActiveConnection(packet.ClientId, client);
     }
 
-    /// <summary>
-    /// Adauga unul sau mai multe topicuri la abonamentul deja existent al unui client, fara sa
-    /// atinga conexiunea de livrare curenta (aceasta este o cerere scurta, de tip request/response,
-    /// nu conexiunea persistenta creata la SUBSCRIBE). Astfel un receiver se poate conecta initial
-    /// la un singur topic si poate cere ulterior sa fie abonat si la altele, fara sa se deconecteze.
-    /// </summary>
     private void HandleAddTopic(Packet packet, NetworkStream stream)
     {
         if (string.IsNullOrWhiteSpace(packet.ClientId))
@@ -453,9 +425,6 @@ public sealed class BrokerServer : IDisposable
             return;
         }
 
-        // Nu are sens sa "adaugi" un topic la care esti deja abonat cu acelasi ClientId - il
-        // filtram, ca sa nu se ceara degeaba o schimbare care nu schimba nimic. Daca niciunul
-        // dintre topicurile cerute nu e cu adevarat nou, cererea e respinsa in intregime.
         string[] newTopics = requestedTopics.Where(topic => !existingTopics.Contains(topic)).ToArray();
         if (newTopics.Length == 0)
         {
@@ -473,6 +442,11 @@ public sealed class BrokerServer : IDisposable
                 merged.UnionWith(newTopics);
                 return merged;
             });
+
+        foreach (string topic in newTopics)
+        {
+            ClaimOrphanMessagesForTopic(packet.ClientId, topic);
+        }
 
         string joinedTopics = string.Join(", ", topics.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase));
         string joinedNewTopics = string.Join(", ", newTopics.OrderBy(t => t, StringComparer.OrdinalIgnoreCase));
@@ -536,11 +510,6 @@ public sealed class BrokerServer : IDisposable
         }
     }
 
-    /// <summary>
-    /// Numara incercarile esuate pentru un mesaj/client. Dupa <see cref="MaxDeliveryAttempts"/> esecuri
-    /// mesajul este scos din coada de livrare si mutat in dead-letter, ca sa nu blocheze la infinit
-    /// coada clientului respectiv cu un mesaj nelivrabil.
-    /// </summary>
     private void HandleDeliveryFailure(string clientId, ConcurrentQueue<Message> queue, Message message, string attemptKey, string reason)
     {
         int attempts = _deliveryAttempts.AddOrUpdate(attemptKey, 1, (_, count) => count + 1);
@@ -611,7 +580,6 @@ public sealed class BrokerServer : IDisposable
             .ToList();
     }
 
-    /// <summary>Descompune campul Topic al pachetului SUBSCRIBE intr-o multime de topicuri unice (separate prin virgula).</summary>
     private static HashSet<string> ParseTopics(string rawTopic)
     {
         var topics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -621,6 +589,26 @@ public sealed class BrokerServer : IDisposable
         }
 
         return topics;
+    }
+
+    private void ClaimOrphanMessagesForTopic(string clientId, string topic)
+    {
+        if (!_orphanMessages.TryRemove(topic, out ConcurrentQueue<Message>? orphanQueue))
+        {
+            return;
+        }
+
+        int claimed = 0;
+        while (orphanQueue.TryDequeue(out Message? message))
+        {
+            _pendingMessages.GetOrAdd(clientId, _ => new ConcurrentQueue<Message>()).Enqueue(message);
+            claimed++;
+        }
+
+        if (claimed > 0)
+        {
+            WriteActivity("PUBLISH", $"{clientId} a preluat {claimed} mesaj(e) publicate anterior pe „{topic}”, inainte sa existe vreun abonat.");
+        }
     }
 
     private void CleanupInactiveConnections()

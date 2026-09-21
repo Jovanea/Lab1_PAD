@@ -11,10 +11,7 @@
     <Style Selector="Button.primary:disabled /template/ ContentPresenter"><Setter Property="Background" Value="#A4BCFD"/></Style>
   </Window.Styles>
   <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="24">
-    <StackPanel Grid.Row="0" Spacing="4" Margin="0,2,0,20">
-      <StackPanel Orientation="Horizontal" Spacing="10"><Border Width="30" Height="30" Background="#155EEF" CornerRadius="9"><TextBlock Text="M" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="MESSAGE HUB" FontSize="22" FontWeight="Bold" Foreground="#101828" VerticalAlignment="Center"/></StackPanel>
-      <TextBlock Text="SENDER  /  publică mesaje prin broker" Foreground="#667085" FontSize="12.5"/>
-    </StackPanel>
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="0,2,0,20"><Border Width="30" Height="30" Background="#155EEF" CornerRadius="9"><TextBlock Text="M" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><TextBlock Text="MESSAGE HUB" FontSize="22" FontWeight="Bold" Foreground="#101828" VerticalAlignment="Center"/></StackPanel>
     <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="17" BorderBrush="#E4E7EC" BorderThickness="1" Margin="0,0,0,14">
       <StackPanel Spacing="11">
         <TextBlock Text="COMPUNE MESAJ" FontWeight="Bold" Foreground="#101828"/>
@@ -27,10 +24,10 @@
         </StackPanel>
         <StackPanel Spacing="4"><TextBlock Text="MESAJ" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/><TextBox Name="MessageBox" Height="86" AcceptsReturn="True" TextWrapping="Wrap" Watermark="Scrie mesajul aici..."/></StackPanel>
         <Button Name="SendButton" Classes="primary" Content="Publica mesajul" Click="OnSendClick"/>
-        <TextBlock Name="StatusText" FontSize="12" Text="Pregătit pentru publicare · port din .env" Foreground="#667085" TextWrapping="Wrap"/>
+        <TextBlock Name="StatusText" FontSize="12" Text="Pregatit pentru publicare" Foreground="#667085" TextWrapping="Wrap"/>
       </StackPanel>
     </Border>
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="2,0,2,8"><TextBlock Text="ISTORIC PUBLICARI" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/><TextBlock Grid.Column="1" Text="confirmare broker" FontSize="10.5" Foreground="#98A2B3"/></Grid>
+    <TextBlock Grid.Row="2" Text="ISTORIC PUBLICARI" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085" Margin="2,0,2,8"/>
     <ScrollViewer Grid.Row="3"><ItemsControl Name="HistoryList"><ItemsControl.ItemTemplate><DataTemplate><Border Background="White" CornerRadius="10" Padding="12" Margin="0,0,0,8" BorderBrush="#E4E7EC" BorderThickness="1"><Grid ColumnDefinitions="Auto,*,Auto"><Border Background="#155EEF" CornerRadius="5" Padding="7,3" Margin="0,0,10,0" VerticalAlignment="Top"><TextBlock Text="{Binding Topic}" Foreground="White" FontSize="10.5" FontWeight="SemiBold"/></Border><StackPanel Grid.Column="1" Spacing="2"><TextBlock Text="{Binding Payload}" TextWrapping="Wrap" FontSize="13" Foreground="#344054"/><TextBlock Text="{Binding Time}" FontSize="10.5" Foreground="#98A2B3"/></StackPanel><TextBlock Grid.Column="2" Text="{Binding StatusIcon}" FontSize="14"/></Grid></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
   </Grid>
 </Window>
