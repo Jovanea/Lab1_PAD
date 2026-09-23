@@ -1,24 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\SenderApp.csproj": {}
+    "/home/valic/UTM/PAD/Lab1_PAD/SenderApp/SenderApp.csproj": {}
   },
   "projects": {
-    "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\SenderApp.csproj": {
+    "/home/valic/UTM/PAD/Lab1_PAD/SenderApp/SenderApp.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\SenderApp.csproj",
+        "projectUniqueName": "/home/valic/UTM/PAD/Lab1_PAD/SenderApp/SenderApp.csproj",
         "projectName": "SenderApp",
-        "projectPath": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\SenderApp.csproj",
-        "packagesPath": "C:\\Users\\John\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\John\\Desktop\\Anul_IV_sem_I\\PAD\\Lab1_PAD\\SenderApp\\obj\\",
+        "projectPath": "/home/valic/UTM/PAD/Lab1_PAD/SenderApp/SenderApp.csproj",
+        "packagesPath": "/home/valic/.nuget/packages/",
+        "outputPath": "/home/valic/UTM/PAD/Lab1_PAD/SenderApp/obj/",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\John\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config"
+          "/home/valic/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
@@ -28,7 +24,6 @@
         },
         "frameworks": {
           "net8.0": {
-            "framework": "net8.0",
             "targetAlias": "net8.0",
             "projectReferences": {}
           }
@@ -43,11 +38,10 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.400"
+        "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
         "net8.0": {
-          "framework": "net8.0",
           "targetAlias": "net8.0",
           "dependencies": {
             "Avalonia": {
@@ -78,18 +72,6 @@
             {
               "name": "Microsoft.AspNetCore.App.Ref",
               "version": "[8.0.31, 8.0.31]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Host.win-x64",
-              "version": "[8.0.31, 8.0.31]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[8.0.31, 8.0.31]"
-            },
-            {
-              "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[8.0.31, 8.0.31]"
             }
           ],
           "frameworkReferences": {
@@ -97,7 +79,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.112/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

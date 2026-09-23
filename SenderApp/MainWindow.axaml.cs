@@ -12,6 +12,12 @@ using MessageHub.Configuration;
 
 namespace SenderApp
 {
+    internal static class JsonOpts
+    {
+        public static readonly JsonSerializerOptions CaseInsensitive = new() { PropertyNameCaseInsensitive = true };
+    }
+
+
     public class Message
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
@@ -134,6 +140,15 @@ namespace SenderApp
                 {
                     _topics.Add(topic);
                 }
+
+                if (_topics.Count == 0)
+                {
+                    TopicDropdown.PlaceholderText = "(fara topice)";
+                }
+                else
+                {
+                    TopicDropdown.PlaceholderText = "Alege topic";
+                }
             }
             finally
             {
@@ -159,7 +174,7 @@ namespace SenderApp
 
                 writer.WriteLine(JsonSerializer.Serialize(packet));
                 stream.ReadTimeout = 5000;
-                BrokerResponse? response = JsonSerializer.Deserialize<BrokerResponse>(reader.ReadLine() ?? string.Empty);
+                BrokerResponse? response = JsonSerializer.Deserialize<BrokerResponse>(reader.ReadLine() ?? string.Empty, JsonOpts.CaseInsensitive);
                 return response?.Success == true
                     ? (true, response.Detail)
                     : (false, response?.Detail ?? "Brokerul nu a confirmat mesajul.");
@@ -181,7 +196,7 @@ namespace SenderApp
 
                 writer.WriteLine(JsonSerializer.Serialize(new Packet { Action = "LIST_TOPICS" }));
                 stream.ReadTimeout = 2000;
-                BrokerTopicsResponse? response = JsonSerializer.Deserialize<BrokerTopicsResponse>(reader.ReadLine() ?? string.Empty);
+                BrokerTopicsResponse? response = JsonSerializer.Deserialize<BrokerTopicsResponse>(reader.ReadLine() ?? string.Empty, JsonOpts.CaseInsensitive);
                 return response?.Success == true
                     ? response.Topics.Where(topic => !string.IsNullOrWhiteSpace(topic)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
                     : Array.Empty<string>();

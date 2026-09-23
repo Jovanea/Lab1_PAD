@@ -7,7 +7,12 @@
         Width="480" Height="700" MinWidth="390" MinHeight="540" Background="#F5F7FB">
   <Window.Styles>
     <Style Selector="TextBox"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#D8E1ED"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="10,8"/><Setter Property="FontSize" Value="13"/><Setter Property="Foreground" Value="Black"/><Setter Property="CaretBrush" Value="Black"/></Style>
+    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#155EEF"/></Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement"><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#155EEF"/><Setter Property="BorderThickness" Value="1.5"/></Style>
+
     <Style Selector="Button.primary"><Setter Property="Background" Value="#155EEF"/><Setter Property="Foreground" Value="White"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Padding" Value="14,10"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="HorizontalContentAlignment" Value="Center"/></Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="#1849C6"/><Setter Property="Foreground" Value="White"/></Style>
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter"><Setter Property="Background" Value="#12399E"/><Setter Property="Foreground" Value="White"/></Style>
     <Style Selector="Button.primary:disabled /template/ ContentPresenter"><Setter Property="Background" Value="#A4BCFD"/></Style>
   </Window.Styles>
   <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="24">
@@ -19,7 +24,7 @@
           <TextBlock Text="TOPIC" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
           <Grid ColumnDefinitions="*,132">
             <TextBox Name="TopicBox" Text="Curs"/>
-            <ComboBox Name="TopicDropdown" Grid.Column="1" Margin="8,0,0,0" SelectionChanged="OnTopicSelectionChanged"/>
+            <ComboBox Name="TopicDropdown" Grid.Column="1" Margin="8,0,0,0" PlaceholderText="Alege topic" HorizontalAlignment="Stretch" SelectionChanged="OnTopicSelectionChanged"/>
           </Grid>
         </StackPanel>
         <StackPanel Spacing="4"><TextBlock Text="MESAJ" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/><TextBox Name="MessageBox" Height="86" AcceptsReturn="True" TextWrapping="Wrap" Watermark="Scrie mesajul aici..."/></StackPanel>

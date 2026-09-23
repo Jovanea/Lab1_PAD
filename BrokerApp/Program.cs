@@ -66,6 +66,12 @@ public sealed class BrokerServer : IDisposable
 
     // mesaje publicate fara niciun abonat, pana cineva se aboneaza la topicul lor
     private readonly ConcurrentDictionary<string, ConcurrentQueue<Message>> _orphanMessages = new(StringComparer.OrdinalIgnoreCase);
+
+    // istoricul complet al mesajelor publicate per topic, pentru a le livra noilor abonati
+    private readonly ConcurrentDictionary<string, List<Message>> _topicHistory = new(StringComparer.OrdinalIgnoreCase);
+
+    // inregistrarea mesajelor livrate/asignate per client, pentru a preveni duplicatele
+    private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _deliveredMessages = new(StringComparer.OrdinalIgnoreCase);
     private TcpListener? _listener;
     private CancellationTokenSource? _cancellation;
 
@@ -111,6 +117,8 @@ public sealed class BrokerServer : IDisposable
         _deliveryAttempts.Clear();
         _deadLetterMessages.Clear();
         _orphanMessages.Clear();
+        _topicHistory.Clear();
+        _deliveredMessages.Clear();
 
         WriteActivity("SYSTEM", "Broker oprit; toata starea a fost stearsa.");
         return Task.CompletedTask;
@@ -199,6 +207,8 @@ public sealed class BrokerServer : IDisposable
         _subscriptions.Clear();
         _pendingMessages.Clear();
         _deliveryAttempts.Clear();
+        _topicHistory.Clear();
+        _deliveredMessages.Clear();
         WriteActivity("SYSTEM", "Toti abonatii au fost eliminati; brokerul a fost resetat la 0 receivere.");
     }
 
@@ -325,6 +335,12 @@ public sealed class BrokerServer : IDisposable
             return;
         }
 
+        // pastreaza mesajul in istoricul topicului pentru viitorii abonati
+        _topicHistory.AddOrUpdate(
+            packet.Topic,
+            _ => new List<Message> { message },
+            (_, list) => { lock (list) { list.Add(message); } return list; });
+
         string[] recipients = _subscriptions
             .Where(item => item.Value.Contains(packet.Topic))
             .Select(item => item.Key)
@@ -332,6 +348,7 @@ public sealed class BrokerServer : IDisposable
 
         foreach (string clientId in recipients)
         {
+            _deliveredMessages.GetOrAdd(clientId, _ => new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase)).TryAdd(message.Id, 0);
             _pendingMessages.GetOrAdd(clientId, _ => new ConcurrentQueue<Message>()).Enqueue(message);
             _ = Task.Run(() => DeliverPendingMessagesForClient(clientId));
         }
@@ -391,6 +408,8 @@ public sealed class BrokerServer : IDisposable
         {
             ClaimOrphanMessagesForTopic(packet.ClientId, topic);
         }
+        // livreaza istoricul mesajelor anterioare pentru topicele abonate
+        ReplayHistoryForClient(packet.ClientId, topics);
         string joinedTopics = string.Join(", ", topics.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase));
         SendResponse(stream, true, "SUBSCRIBED", $"Abonat la topicurile: {joinedTopics}.");
         WriteActivity("SUBSCRIBE", $"{packet.ClientId} este abonat la „{joinedTopics}”.");
@@ -447,6 +466,8 @@ public sealed class BrokerServer : IDisposable
         {
             ClaimOrphanMessagesForTopic(packet.ClientId, topic);
         }
+        // livreaza istoricul mesajelor anterioare pentru topicele nou adaugate
+        ReplayHistoryForClient(packet.ClientId, new HashSet<string>(newTopics, StringComparer.OrdinalIgnoreCase));
 
         string joinedTopics = string.Join(", ", topics.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase));
         string joinedNewTopics = string.Join(", ", newTopics.OrderBy(t => t, StringComparer.OrdinalIgnoreCase));
@@ -591,24 +612,44 @@ public sealed class BrokerServer : IDisposable
         return topics;
     }
 
+    private void ReplayHistoryForClient(string clientId, HashSet<string> topics)
+    {
+        int replayed = 0;
+        ConcurrentQueue<Message> queue = _pendingMessages.GetOrAdd(clientId, _ => new ConcurrentQueue<Message>());
+        ConcurrentDictionary<string, byte> clientDelivered = _deliveredMessages.GetOrAdd(clientId, _ => new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase));
+
+        foreach (string topic in topics)
+        {
+            if (_topicHistory.TryGetValue(topic, out List<Message>? history))
+            {
+                lock (history)
+                {
+                    foreach (Message message in history)
+                    {
+                        if (clientDelivered.TryAdd(message.Id, 0))
+                        {
+                            queue.Enqueue(message);
+                            replayed++;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (replayed > 0)
+        {
+            WriteActivity("REPLAY", $"{clientId} a primit {replayed} mesaj(e) din istoricul topicelor.");
+        }
+    }
+
     private void ClaimOrphanMessagesForTopic(string clientId, string topic)
     {
-        if (!_orphanMessages.TryRemove(topic, out ConcurrentQueue<Message>? orphanQueue))
+        if (!_orphanMessages.TryRemove(topic, out _))
         {
             return;
         }
 
-        int claimed = 0;
-        while (orphanQueue.TryDequeue(out Message? message))
-        {
-            _pendingMessages.GetOrAdd(clientId, _ => new ConcurrentQueue<Message>()).Enqueue(message);
-            claimed++;
-        }
-
-        if (claimed > 0)
-        {
-            WriteActivity("PUBLISH", $"{clientId} a preluat {claimed} mesaj(e) publicate anterior pe „{topic}”, inainte sa existe vreun abonat.");
-        }
+        WriteActivity("PUBLISH", $"Topic „{topic}” are acum cel putin un abonat ({clientId}); starea fara abonati a fost resetata.");
     }
 
     private void CleanupInactiveConnections()
