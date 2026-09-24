@@ -60,6 +60,12 @@ namespace SenderApp
         private readonly DispatcherTimer _topicRefreshTimer;
         private bool _isRefreshingTopics;
 
+        // un singur canal TCP persistent per terminal: portul local este alocat de sistemul de operare
+        private readonly object _brokerLock = new();
+        private TcpClient? _brokerClient;
+        private StreamReader? _brokerReader;
+        private StreamWriter? _brokerWriter;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -69,7 +75,14 @@ namespace SenderApp
             _topicRefreshTimer.Tick += async (_, _) => await RefreshTopicsAsync();
             _topicRefreshTimer.Start();
             Opened += async (_, _) => await RefreshTopicsAsync();
-            Closed += (_, _) => _topicRefreshTimer.Stop();
+            Closed += (_, _) =>
+            {
+                _topicRefreshTimer.Stop();
+                lock (_brokerLock)
+                {
+                    CloseBrokerConnection();
+                }
+            };
         }
 
         private void OnTopicSelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -96,9 +109,7 @@ namespace SenderApp
             StatusText.Text = "Se trimite...";
             StatusText.Foreground = Avalonia.Media.Brushes.Gray;
 
-            string brokerHost = EnvironmentSettings.BrokerHost;
-
-            (bool success, string detail) = await Task.Run(() => SendMessage(brokerHost, topic, payload));
+            (bool success, string detail) = await Task.Run(() => SendMessage(topic, payload));
 
             _history.Insert(0, new SentEntry
             {
@@ -128,12 +139,10 @@ namespace SenderApp
                 return;
             }
 
-            string brokerHost = EnvironmentSettings.BrokerHost;
-
             _isRefreshingTopics = true;
             try
             {
-                string[] topics = await Task.Run(() => GetActiveTopics(brokerHost));
+                string[] topics = await Task.Run(GetActiveTopics);
                 TopicDropdown.SelectedItem = null;
                 _topics.Clear();
                 foreach (string topic in topics)
@@ -156,15 +165,10 @@ namespace SenderApp
             }
         }
 
-        private static (bool Success, string Detail) SendMessage(string brokerHost, string topic, string payload)
+        private (bool Success, string Detail) SendMessage(string topic, string payload)
         {
             try
             {
-                using TcpClient client = new TcpClient(brokerHost, EnvironmentSettings.BrokerPort);
-                using NetworkStream stream = client.GetStream();
-                using StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
-                using StreamReader reader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
-
                 var packet = new Packet
                 {
                     Action = "PUBLISH",
@@ -172,9 +176,7 @@ namespace SenderApp
                     MessageData = new Message { Topic = topic, Payload = payload }
                 };
 
-                writer.WriteLine(JsonSerializer.Serialize(packet));
-                stream.ReadTimeout = 5000;
-                BrokerResponse? response = JsonSerializer.Deserialize<BrokerResponse>(reader.ReadLine() ?? string.Empty, JsonOpts.CaseInsensitive);
+                BrokerResponse? response = JsonSerializer.Deserialize<BrokerResponse>(Exchange(packet, 5000), JsonOpts.CaseInsensitive);
                 return response?.Success == true
                     ? (true, response.Detail)
                     : (false, response?.Detail ?? "Brokerul nu a confirmat mesajul.");
@@ -185,18 +187,11 @@ namespace SenderApp
             }
         }
 
-        private static string[] GetActiveTopics(string brokerHost)
+        private string[] GetActiveTopics()
         {
             try
             {
-                using TcpClient client = new TcpClient(brokerHost, EnvironmentSettings.BrokerPort);
-                using NetworkStream stream = client.GetStream();
-                using StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
-                using StreamReader reader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
-
-                writer.WriteLine(JsonSerializer.Serialize(new Packet { Action = "LIST_TOPICS" }));
-                stream.ReadTimeout = 2000;
-                BrokerTopicsResponse? response = JsonSerializer.Deserialize<BrokerTopicsResponse>(reader.ReadLine() ?? string.Empty, JsonOpts.CaseInsensitive);
+                BrokerTopicsResponse? response = JsonSerializer.Deserialize<BrokerTopicsResponse>(Exchange(new Packet { Action = "LIST_TOPICS" }, 2000), JsonOpts.CaseInsensitive);
                 return response?.Success == true
                     ? response.Topics.Where(topic => !string.IsNullOrWhiteSpace(topic)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
                     : Array.Empty<string>();
@@ -204,6 +199,69 @@ namespace SenderApp
             catch
             {
                 return Array.Empty<string>();
+            }
+        }
+
+        // trimite un pachet pe canalul persistent si citeste raspunsul; la eroare canalul se redeschide la urmatoarea cerere
+        private string Exchange(Packet packet, int timeoutMilliseconds)
+        {
+            lock (_brokerLock)
+            {
+                for (int attempt = 1; ; attempt++)
+                {
+                    bool reusedConnection = _brokerClient is not null;
+                    try
+                    {
+                        EnsureBrokerConnection();
+                        _brokerClient!.GetStream().ReadTimeout = timeoutMilliseconds;
+                        _brokerWriter!.WriteLine(JsonSerializer.Serialize(packet));
+                        return _brokerReader!.ReadLine() ?? throw new IOException("Brokerul a inchis conexiunea.");
+                    }
+                    catch (Exception ex) when ((ex is IOException or SocketException) && reusedConnection && attempt == 1)
+                    {
+                        // canalul vechi a fost inchis (ex. brokerul a repornit): se deschide unul nou si se reincearca o data
+                        CloseBrokerConnection();
+                    }
+                    catch
+                    {
+                        CloseBrokerConnection();
+                        throw;
+                    }
+                }
+            }
+        }
+
+        private void EnsureBrokerConnection()
+        {
+            if (_brokerClient is { Connected: true })
+            {
+                return;
+            }
+
+            CloseBrokerConnection();
+            _brokerClient = new TcpClient(EnvironmentSettings.BrokerHost, EnvironmentSettings.BrokerPort);
+            NetworkStream stream = _brokerClient.GetStream();
+            _brokerWriter = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
+            _brokerReader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
+
+            string local = _brokerClient.Client.LocalEndPoint?.ToString() ?? "-";
+            string remote = _brokerClient.Client.RemoteEndPoint?.ToString() ?? "-";
+            Dispatcher.UIThread.Post(() => ConnectionText.Text = $"Adresa locala: {local}  →  Broker: {remote}");
+        }
+
+        private void CloseBrokerConnection()
+        {
+            bool wasOpen = _brokerClient is not null;
+            _brokerReader?.Dispose();
+            _brokerWriter?.Dispose();
+            _brokerClient?.Dispose();
+            _brokerReader = null;
+            _brokerWriter = null;
+            _brokerClient = null;
+
+            if (wasOpen)
+            {
+                Dispatcher.UIThread.Post(() => ConnectionText.Text = "Neconectat la broker");
             }
         }
     }

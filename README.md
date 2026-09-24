@@ -5,13 +5,15 @@ Senderul nu cunoaste adresa receiverului; comunica numai cu brokerul, iar broker
 
 ## Protocol si canale de comunicare
 
-Transportul este **TCP** pe portul `5000`. A fost ales deoarece laboratorul necesita transmitere fiabila si ordonata: TCP detecteaza erorile de conexiune si pastreaza ordinea octetilor, iar brokerul poate pastra mesajul pana la confirmarea receiverului. UDP ar necesita implementarea suplimentara a ordonarii, retransmiterii si detectarii pierderilor.
+Transportul este **TCP**; brokerul asculta pe portul `BROKER_PORT` din `.env`. A fost ales deoarece laboratorul necesita transmitere fiabila si ordonata: TCP detecteaza erorile de conexiune si pastreaza ordinea octetilor, iar brokerul poate pastra mesajul pana la confirmarea receiverului. UDP ar necesita implementarea suplimentara a ordonarii, retransmiterii si detectarii pierderilor.
 
 Fiecare client deschide un canal TCP bidirectional cu brokerul:
 
-- senderul deschide un canal scurt: trimite un `PUBLISH` si asteapta confirmarea brokerului;
+- senderul pastreaza un canal persistent pe care trimite `PUBLISH` si `LIST_TOPICS` si asteapta confirmarea brokerului pentru fiecare cerere;
 - receiverul pastreaza un canal: trimite un `SUBSCRIBE`, primeste mesaje si raspunde cu `ACK:<messageId>`;
 - brokerul accepta fiecare canal pe un task separat. Astfel, numarul canalelor este variabil, cate unul pentru fiecare client conectat.
+
+Porturile clientilor nu sunt hardcodate: fiecare terminal (sender sau receiver) primeste de la sistemul de operare un port local liber la conectare, deci fiecare terminal are un port diferit. Portul local este afisat in fereastra fiecarui terminal, iar brokerul afiseaza adresa `IP:port` a fiecarui abonat si a senderului in jurnal.
 
 Datele sunt JSON, cate un obiect pe linie (UTF-8 fara BOM). Exemple:
 

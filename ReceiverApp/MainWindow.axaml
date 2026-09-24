@@ -79,6 +79,7 @@
           <Ellipse Name="StatusDot" Width="9" Height="9" Fill="#98A2B3" VerticalAlignment="Center"/>
           <TextBlock Name="StatusText" FontSize="12" Text="Neconectat" Foreground="#667085" TextWrapping="Wrap"/>
         </StackPanel>
+        <TextBlock Name="ConnectionText" FontSize="11.5" Foreground="#155EEF" TextWrapping="Wrap"/>
         <Border BorderBrush="#EAECF0" BorderThickness="0,1,0,0" Padding="0,11,0,0" Margin="0,2,0,0">
           <StackPanel Spacing="8">
             <TextBlock Text="ADAUGA TOPIC SUPLIMENTAR" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>

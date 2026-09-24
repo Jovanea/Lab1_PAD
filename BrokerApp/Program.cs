@@ -47,7 +47,7 @@ public sealed class DeadLetterRecord
 }
 
 public record BrokerActivity(string Category, string Detail, DateTime Time);
-public record BrokerSubscriber(string ClientId, string Topic, bool IsConnected);
+public record BrokerSubscriber(string ClientId, string Endpoint, string Topic, bool IsConnected);
 public record BrokerDeadLetter(string Id, string ClientId, string Topic, string Payload, string Reason, int Attempts, DateTime FailedAt);
 public record BrokerSnapshot(int SubscriberCount, int ConnectedCount, int PendingCount, IReadOnlyList<BrokerSubscriber> Subscribers, int DeadLetterCount, IReadOnlyList<BrokerDeadLetter> DeadLetters, int OrphanCount);
 
@@ -63,6 +63,9 @@ public sealed class BrokerServer : IDisposable
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _deliveryLocks = new();
     private readonly ConcurrentDictionary<string, int> _deliveryAttempts = new();
     private readonly ConcurrentDictionary<string, DeadLetterRecord> _deadLetterMessages = new();
+
+    // adresa IP:port de pe care s-a abonat fiecare receiver
+    private readonly ConcurrentDictionary<string, string> _clientEndpoints = new();
 
     // mesaje publicate fara niciun abonat, pana cineva se aboneaza la topicul lor
     private readonly ConcurrentDictionary<string, ConcurrentQueue<Message>> _orphanMessages = new(StringComparer.OrdinalIgnoreCase);
@@ -119,6 +122,7 @@ public sealed class BrokerServer : IDisposable
         _orphanMessages.Clear();
         _topicHistory.Clear();
         _deliveredMessages.Clear();
+        _clientEndpoints.Clear();
 
         WriteActivity("SYSTEM", "Broker oprit; toata starea a fost stearsa.");
         return Task.CompletedTask;
@@ -130,6 +134,7 @@ public sealed class BrokerServer : IDisposable
             .OrderBy(item => item.Key)
             .Select(item => new BrokerSubscriber(
                 item.Key,
+                _clientEndpoints.TryGetValue(item.Key, out string? endpoint) ? endpoint : "-",
                 string.Join(", ", item.Value.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase)),
                 _activeSockets.ContainsKey(item.Key)))
             .ToList();
@@ -209,6 +214,7 @@ public sealed class BrokerServer : IDisposable
         _deliveryAttempts.Clear();
         _topicHistory.Clear();
         _deliveredMessages.Clear();
+        _clientEndpoints.Clear();
         WriteActivity("SYSTEM", "Toti abonatii au fost eliminati; brokerul a fost resetat la 0 receivere.");
     }
 
@@ -251,69 +257,28 @@ public sealed class BrokerServer : IDisposable
 
     private void HandleClient(TcpClient client, CancellationToken cancellationToken)
     {
+        // fiecare terminal are propriul port local, alocat de sistemul de operare
+        string endpoint = client.Client.RemoteEndPoint?.ToString() ?? "necunoscut";
+
         using (client)
         using (NetworkStream stream = client.GetStream())
         using (StreamReader reader = new(stream, Utf8, leaveOpen: true))
         {
             try
             {
-                string? rawData = reader.ReadLine();
-                if (string.IsNullOrWhiteSpace(rawData))
+                // canalul ramane deschis: clientul poate trimite mai multe pachete de pe acelasi port
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    SendResponse(stream, false, "EMPTY_PACKET", "Pachetul nu poate fi gol.");
-                    return;
-                }
+                    string? rawData = reader.ReadLine();
+                    if (rawData is null)
+                    {
+                        return;
+                    }
 
-                Packet? packet;
-                try
-                {
-                    packet = JsonSerializer.Deserialize<Packet>(rawData, JsonOptions);
-                }
-                catch (JsonException)
-                {
-                    SendResponse(stream, false, "INVALID_JSON", "Mesajul trebuie sa fie JSON valid.");
-                    WriteActivity("ERROR", "A fost respins un pachet JSON invalid.");
-                    return;
-                }
-
-                if (packet is null || string.IsNullOrWhiteSpace(packet.Action))
-                {
-                    SendResponse(stream, false, "INVALID_PACKET", "Action este obligatoriu.");
-                    return;
-                }
-
-                switch (packet.Action.ToUpperInvariant())
-                {
-                    case "LIST_TOPICS":
-                        HandleListTopics(stream);
+                    if (HandlePacket(rawData, client, stream, reader, endpoint, cancellationToken))
+                    {
                         return;
-                    case "PUBLISH":
-                        if (string.IsNullOrWhiteSpace(packet.Topic))
-                        {
-                            SendResponse(stream, false, "INVALID_PACKET", "Topic este obligatoriu pentru PUBLISH.");
-                            return;
-                        }
-                        HandlePublish(packet, stream);
-                        return;
-                    case "SUBSCRIBE":
-                        if (string.IsNullOrWhiteSpace(packet.Topic))
-                        {
-                            SendResponse(stream, false, "INVALID_PACKET", "Topic este obligatoriu pentru SUBSCRIBE.");
-                            return;
-                        }
-                        HandleSubscribe(packet, client, stream, reader, cancellationToken);
-                        return;
-                    case "ADD_TOPIC":
-                        if (string.IsNullOrWhiteSpace(packet.Topic))
-                        {
-                            SendResponse(stream, false, "INVALID_PACKET", "Topic este obligatoriu pentru ADD_TOPIC.");
-                            return;
-                        }
-                        HandleAddTopic(packet, stream);
-                        return;
-                    default:
-                        SendResponse(stream, false, "UNKNOWN_ACTION", "Action acceptat: PUBLISH, SUBSCRIBE, ADD_TOPIC sau LIST_TOPICS.");
-                        return;
+                    }
                 }
             }
             catch (IOException)
@@ -325,7 +290,69 @@ public sealed class BrokerServer : IDisposable
         }
     }
 
-    private void HandlePublish(Packet packet, NetworkStream stream)
+    // returneaza true cand conexiunea a fost preluata de un abonament (SUBSCRIBE) si s-a incheiat
+    private bool HandlePacket(string rawData, TcpClient client, NetworkStream stream, StreamReader reader, string endpoint, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(rawData))
+        {
+            SendResponse(stream, false, "EMPTY_PACKET", "Pachetul nu poate fi gol.");
+            return false;
+        }
+
+        Packet? packet;
+        try
+        {
+            packet = JsonSerializer.Deserialize<Packet>(rawData, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            SendResponse(stream, false, "INVALID_JSON", "Mesajul trebuie sa fie JSON valid.");
+            WriteActivity("ERROR", $"A fost respins un pachet JSON invalid de la {endpoint}.");
+            return false;
+        }
+
+        if (packet is null || string.IsNullOrWhiteSpace(packet.Action))
+        {
+            SendResponse(stream, false, "INVALID_PACKET", "Action este obligatoriu.");
+            return false;
+        }
+
+        switch (packet.Action.ToUpperInvariant())
+        {
+            case "LIST_TOPICS":
+                HandleListTopics(stream);
+                return false;
+            case "PUBLISH":
+                if (string.IsNullOrWhiteSpace(packet.Topic))
+                {
+                    SendResponse(stream, false, "INVALID_PACKET", "Topic este obligatoriu pentru PUBLISH.");
+                    return false;
+                }
+                HandlePublish(packet, stream, endpoint);
+                return false;
+            case "SUBSCRIBE":
+                if (string.IsNullOrWhiteSpace(packet.Topic))
+                {
+                    SendResponse(stream, false, "INVALID_PACKET", "Topic este obligatoriu pentru SUBSCRIBE.");
+                    return true;
+                }
+                HandleSubscribe(packet, client, stream, reader, endpoint, cancellationToken);
+                return true;
+            case "ADD_TOPIC":
+                if (string.IsNullOrWhiteSpace(packet.Topic))
+                {
+                    SendResponse(stream, false, "INVALID_PACKET", "Topic este obligatoriu pentru ADD_TOPIC.");
+                    return false;
+                }
+                HandleAddTopic(packet, stream);
+                return false;
+            default:
+                SendResponse(stream, false, "UNKNOWN_ACTION", "Action acceptat: PUBLISH, SUBSCRIBE, ADD_TOPIC sau LIST_TOPICS.");
+                return false;
+        }
+    }
+
+    private void HandlePublish(Packet packet, NetworkStream stream, string endpoint)
     {
         Message? message = packet.MessageData;
         if (message is null || string.IsNullOrWhiteSpace(message.Id) || string.IsNullOrWhiteSpace(message.Payload) ||
@@ -357,12 +384,12 @@ public sealed class BrokerServer : IDisposable
         {
             _orphanMessages.GetOrAdd(packet.Topic, _ => new ConcurrentQueue<Message>()).Enqueue(message);
             SendResponse(stream, true, "PUBLISH_ACCEPTED", "Mesaj acceptat, dar momentan nu exista niciun abonat pe acest topic; va fi livrat cand cineva se aboneaza.");
-            WriteActivity("PUBLISH", $"Topic „{packet.Topic}” publicat, dar fara niciun abonat momentan (mesaj pastrat pentru viitor).");
+            WriteActivity("PUBLISH", $"Topic „{packet.Topic}” publicat de {endpoint}, dar fara niciun abonat momentan (mesaj pastrat pentru viitor).");
             return;
         }
 
         SendResponse(stream, true, "PUBLISH_ACCEPTED", "Mesaj validat si stocat pentru livrare.");
-        WriteActivity("PUBLISH", $"Topic „{packet.Topic}” trimis catre {recipients.Length} abonat(i).");
+        WriteActivity("PUBLISH", $"Topic „{packet.Topic}” de la {endpoint} trimis catre {recipients.Length} abonat(i).");
     }
 
     private void HandleListTopics(NetworkStream stream)
@@ -379,7 +406,7 @@ public sealed class BrokerServer : IDisposable
         stream.Flush();
     }
 
-    private void HandleSubscribe(Packet packet, TcpClient client, NetworkStream stream, StreamReader reader, CancellationToken cancellationToken)
+    private void HandleSubscribe(Packet packet, TcpClient client, NetworkStream stream, StreamReader reader, string endpoint, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(packet.ClientId))
         {
@@ -404,6 +431,7 @@ public sealed class BrokerServer : IDisposable
         _subscriptions[packet.ClientId] = topics;
         _activeSockets[packet.ClientId] = client;
         _activeReaders[packet.ClientId] = reader;
+        _clientEndpoints[packet.ClientId] = endpoint;
 
         // la reconectare, reseteaza evidenta de deduplicare si coada veche
         // pentru a permite replay-ul complet al istoricului
@@ -418,7 +446,7 @@ public sealed class BrokerServer : IDisposable
         ReplayHistoryForClient(packet.ClientId, topics);
         string joinedTopics = string.Join(", ", topics.OrderBy(topic => topic, StringComparer.OrdinalIgnoreCase));
         SendResponse(stream, true, "SUBSCRIBED", $"Abonat la topicurile: {joinedTopics}.");
-        WriteActivity("SUBSCRIBE", $"{packet.ClientId} este abonat la „{joinedTopics}”.");
+        WriteActivity("SUBSCRIBE", $"{packet.ClientId} ({endpoint}) este abonat la „{joinedTopics}”.");
         DeliverPendingMessagesForClient(packet.ClientId);
 
         while (!cancellationToken.IsCancellationRequested && IsSocketConnected(client))

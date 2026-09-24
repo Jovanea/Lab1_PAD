@@ -20,6 +20,7 @@
     <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="17" BorderBrush="#E4E7EC" BorderThickness="1" Margin="0,0,0,14">
       <StackPanel Spacing="11">
         <TextBlock Text="COMPUNE MESAJ" FontWeight="Bold" Foreground="#101828"/>
+        <TextBlock Name="ConnectionText" FontSize="11.5" Foreground="#155EEF" Text="Neconectat la broker"/>
         <StackPanel Spacing="4">
           <TextBlock Text="TOPIC" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
           <Grid ColumnDefinitions="*,132">

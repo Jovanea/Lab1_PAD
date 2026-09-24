@@ -160,8 +160,13 @@ namespace ReceiverApp
                 }
                 stream.ReadTimeout = Timeout.Infinite;
 
+                // portul local este alocat de sistemul de operare, deci fiecare receiver are propriul port
+                string local = client.Client.LocalEndPoint?.ToString() ?? "-";
+                string remote = client.Client.RemoteEndPoint?.ToString() ?? "-";
+
                 Dispatcher.UIThread.Post(() =>
                 {
+                    ConnectionText.Text = $"Adresa locala: {local}  →  Broker: {remote}";
                     _subscribedTopics.Add(topic);
                     NewTopicBox.IsEnabled = true;
                     AddTopicButton.IsEnabled = true;
@@ -218,6 +223,7 @@ namespace ReceiverApp
                 TopicBox.IsEnabled = true;
                 NewTopicBox.IsEnabled = false;
                 AddTopicButton.IsEnabled = false;
+                ConnectionText.Text = string.Empty;
                 _subscribedTopics.Clear();
                 RefreshTopicsText();
             });

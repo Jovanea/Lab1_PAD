@@ -148,6 +148,7 @@ public partial class MainWindow : Window
         public SubscriberRow(BrokerSubscriber subscriber, Action<string> simulateFailure)
         {
             ClientId = subscriber.ClientId;
+            Endpoint = subscriber.Endpoint;
             Topic = subscriber.Topic;
             State = subscriber.IsConnected ? "Conectat" : "Offline";
             StateColor = subscriber.IsConnected ? Brushes.SeaGreen : Brushes.Gray;
@@ -155,6 +156,7 @@ public partial class MainWindow : Window
         }
 
         public string ClientId { get; }
+        public string Endpoint { get; }
         public string Topic { get; }
         public string State { get; }
         public IBrush StateColor { get; }
