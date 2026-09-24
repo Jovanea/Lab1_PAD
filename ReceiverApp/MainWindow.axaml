@@ -67,6 +67,10 @@
       <StackPanel Spacing="11">
         <TextBlock Text="ABONARE" FontWeight="Bold" Foreground="#101828"/>
         <StackPanel Spacing="4">
+          <TextBlock Text="ADRESA BROKER (IP:PORT)" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
+          <TextBox Name="BrokerAddressBox" Watermark="ex: 192.168.1.10:5000"/>
+        </StackPanel>
+        <StackPanel Spacing="4">
           <TextBlock Text="ID CLIENT" FontSize="10.5" FontWeight="SemiBold" Foreground="#667085"/>
           <TextBox Name="ClientIdBox" Text="receiver_1"/>
         </StackPanel>

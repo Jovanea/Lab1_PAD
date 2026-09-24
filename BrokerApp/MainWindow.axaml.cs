@@ -56,6 +56,7 @@ public partial class MainWindow : Window
             StartButton.IsEnabled = false;
             StopButton.IsEnabled = true;
             SetStatus("Broker activ", Brushes.SeaGreen);
+            ShowLanAddresses(port);
             RefreshSnapshot();
         }
         catch (Exception ex)
@@ -72,6 +73,14 @@ public partial class MainWindow : Window
         StopButton.IsEnabled = false;
         SetStatus("Oprit", Brushes.Gray);
         RefreshSnapshot();
+    }
+
+    private void ShowLanAddresses(int port)
+    {
+        string[] addresses = EnvironmentSettings.GetLocalIPv4Addresses();
+        LanAddressText.Text = addresses.Length == 0
+            ? "Nicio retea LAN activa (doar 127.0.0.1)"
+            : $"Adresa pentru alte calculatoare: {string.Join("  |  ", addresses.Select(ip => $"{ip}:{port}"))}";
     }
 
     private void OnBrokerActivity(object? sender, BrokerActivity activity)

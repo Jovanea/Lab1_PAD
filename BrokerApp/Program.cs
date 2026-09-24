@@ -92,7 +92,7 @@ public sealed class BrokerServer : IDisposable
         _listener = new TcpListener(IPAddress.Any, port);
         _listener.Start();
         IsRunning = true;
-        WriteActivity("SYSTEM", $"Broker pornit pe portul TCP {port}.");
+        WriteActivity("SYSTEM", $"Broker pornit pe portul TCP {port}, pe toate interfetele de retea.");
         _ = Task.Run(() => AcceptLoopAsync(_cancellation.Token));
         _ = Task.Run(() => DeliveryWorkerAsync(_cancellation.Token));
         return Task.CompletedTask;

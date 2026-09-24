@@ -65,10 +65,13 @@ namespace SenderApp
         private TcpClient? _brokerClient;
         private StreamReader? _brokerReader;
         private StreamWriter? _brokerWriter;
+        private volatile string _brokerAddress = $"{EnvironmentSettings.BrokerHost}:{EnvironmentSettings.BrokerPort}";
+        private string _connectedAddress = string.Empty;
 
         public MainWindow()
         {
             InitializeComponent();
+            BrokerAddressBox.Text = _brokerAddress;
             HistoryList.ItemsSource = _history;
             TopicDropdown.ItemsSource = _topics;
             _topicRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -85,6 +88,15 @@ namespace SenderApp
             };
         }
 
+        // brokerul poate rula pe alt calculator: adresa se poate schimba din interfata, iar canalul se redeschide
+        private void OnBrokerAddressChanged(object? sender, TextChangedEventArgs e)
+        {
+            if (EnvironmentSettings.TryParseBrokerAddress(BrokerAddressBox.Text, out string host, out int port))
+            {
+                _brokerAddress = $"{host}:{port}";
+            }
+        }
+
         private void OnTopicSelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             if (TopicDropdown.SelectedItem is string topic && !string.IsNullOrWhiteSpace(topic))
@@ -97,6 +109,13 @@ namespace SenderApp
         {
             string topic = TopicBox.Text?.Trim() ?? string.Empty;
             string payload = MessageBox.Text?.Trim() ?? string.Empty;
+
+            if (!EnvironmentSettings.TryParseBrokerAddress(BrokerAddressBox.Text, out _, out _))
+            {
+                StatusText.Text = "Adresa brokerului este invalida (ex: 192.168.1.10:5000).";
+                StatusText.Foreground = Avalonia.Media.Brushes.OrangeRed;
+                return;
+            }
 
             if (string.IsNullOrWhiteSpace(topic) || string.IsNullOrWhiteSpace(payload))
             {
@@ -233,13 +252,16 @@ namespace SenderApp
 
         private void EnsureBrokerConnection()
         {
-            if (_brokerClient is { Connected: true })
+            string address = _brokerAddress;
+            if (_brokerClient is { Connected: true } && address == _connectedAddress)
             {
                 return;
             }
 
             CloseBrokerConnection();
-            _brokerClient = new TcpClient(EnvironmentSettings.BrokerHost, EnvironmentSettings.BrokerPort);
+            EnvironmentSettings.TryParseBrokerAddress(address, out string host, out int port);
+            _brokerClient = EnvironmentSettings.ConnectToBroker(host, port);
+            _connectedAddress = address;
             NetworkStream stream = _brokerClient.GetStream();
             _brokerWriter = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
             _brokerReader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);

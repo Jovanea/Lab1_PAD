@@ -51,3 +51,19 @@ BROKER_PORT=5000
 Toate cele trei aplicații citesc aceste valori. Brokerul pornește automat la deschiderea ferestrei, iar Sender și Receiver afișează adresa brokerului încărcată din `.env`.
 
 Porniti brokerul, apoi unul sau mai multi receiveri, apoi senderul. Un receiver trebuie abonat la acelasi topic inainte ca senderul sa publice primul mesaj pentru acel topic.
+
+## Rulare pe doua calculatoare (retea locala)
+
+Brokerul asculta pe toate interfetele de retea (`IPAddress.Any`), deci accepta conexiuni si de pe alte calculatoare.
+
+1. Pe calculatorul A porniti `BrokerApp`. In bara de sus apare `Adresa pentru alte calculatoare: 192.168.x.y:5000`.
+2. Pe calculatorul A permiteti conexiunile pe portul brokerului in Windows Firewall (o singura data, din PowerShell pornit ca Administrator):
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "MessageHub Broker" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow
+   ```
+
+   Alternativ, acceptati fereastra de firewall care apare la prima pornire a brokerului, bifand si retelele *Private*.
+3. Pe calculatorul B (sau tot pe A) porniti `SenderApp` / `ReceiverApp` si scrieti in campul **ADRESA BROKER** adresa afisata de broker, de ex. `192.168.1.10:5000`. Valoarea implicita a campului vine din `.env` (`BROKER_HOST` / `BROKER_PORT`), deci o puteti seta si acolo.
+
+Ambele calculatoare trebuie sa fie in aceeasi retea (acelasi Wi-Fi/LAN), iar reteaua trebuie sa fie marcata ca *Private* in Windows. Verificare rapida de pe calculatorul B: `Test-NetConnection 192.168.1.10 -Port 5000` trebuie sa afiseze `TcpTestSucceeded : True`.

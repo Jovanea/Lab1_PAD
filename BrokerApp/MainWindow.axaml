@@ -42,6 +42,7 @@
     </Grid>
     <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto">
       <TextBlock Text="PORT" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#475467"/><TextBox Name="PortBox" Grid.Column="1" Text="5000" Width="88"/>
+      <TextBlock Name="LanAddressText" Grid.Column="3" Margin="14,0" VerticalAlignment="Center" Foreground="#155EEF" FontSize="12" TextWrapping="Wrap"/>
       <Button Name="StartButton" Grid.Column="4" Classes="primary" Content="Porneste brokerul" Click="OnStartClick"/>
       <Button Name="StopButton" Grid.Column="5" Classes="secondary" Content="Opreste" IsEnabled="False" Click="OnStopClick"/>
     </Grid>

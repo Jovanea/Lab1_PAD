@@ -49,17 +49,18 @@ namespace ReceiverApp
         private readonly ObservableCollection<ReceivedEntry> _feed = new();
         private readonly HashSet<string> _subscribedTopics = new(StringComparer.OrdinalIgnoreCase);
         private string _brokerHost = string.Empty;
+        private int _brokerPort;
         private string _clientId = string.Empty;
 
         public MainWindow()
         {
             InitializeComponent();
             FeedList.ItemsSource = _feed;
+            BrokerAddressBox.Text = $"{EnvironmentSettings.BrokerHost}:{EnvironmentSettings.BrokerPort}";
         }
 
         private void OnConnectClick(object? sender, RoutedEventArgs e)
         {
-            string brokerHost = EnvironmentSettings.BrokerHost;
             string clientId = ClientIdBox.Text?.Trim() ?? string.Empty;
             string topic = TopicBox.Text?.Trim() ?? string.Empty;
 
@@ -69,15 +70,23 @@ namespace ReceiverApp
                 return;
             }
 
+            if (!EnvironmentSettings.TryParseBrokerAddress(BrokerAddressBox.Text, out string brokerHost, out int brokerPort))
+            {
+                SetStatus("Adresa brokerului este invalida (ex: 192.168.1.10:5000).", Brushes.OrangeRed);
+                return;
+            }
+
             _brokerHost = brokerHost;
+            _brokerPort = brokerPort;
             _clientId = clientId;
 
             ConnectButton.IsEnabled = false;
+            BrokerAddressBox.IsEnabled = false;
             ClientIdBox.IsEnabled = false;
             TopicBox.IsEnabled = false;
             SetStatus("Se conectează...", Brushes.Gray);
 
-            Task.Run(() => ConnectAndListen(brokerHost, clientId, topic));
+            Task.Run(() => ConnectAndListen(brokerHost, brokerPort, clientId, topic));
         }
 
         private void OnAddTopicClick(object? sender, RoutedEventArgs e)
@@ -96,7 +105,7 @@ namespace ReceiverApp
         {
             try
             {
-                using TcpClient client = new TcpClient(_brokerHost, EnvironmentSettings.BrokerPort);
+                using TcpClient client = EnvironmentSettings.ConnectToBroker(_brokerHost, _brokerPort);
                 using NetworkStream stream = client.GetStream();
                 using StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
                 using StreamReader reader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
@@ -140,11 +149,11 @@ namespace ReceiverApp
                 : $"Abonat la: {string.Join(", ", _subscribedTopics.OrderBy(t => t, StringComparer.OrdinalIgnoreCase))}";
         }
 
-        private void ConnectAndListen(string brokerHost, string clientId, string topic)
+        private void ConnectAndListen(string brokerHost, int brokerPort, string clientId, string topic)
         {
             try
             {
-                using TcpClient client = new TcpClient(brokerHost, EnvironmentSettings.BrokerPort);
+                using TcpClient client = EnvironmentSettings.ConnectToBroker(brokerHost, brokerPort);
                 using NetworkStream stream = client.GetStream();
                 using StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
                 using StreamReader reader = new StreamReader(stream, new UTF8Encoding(false), leaveOpen: true);
@@ -219,6 +228,7 @@ namespace ReceiverApp
             Dispatcher.UIThread.Post(() =>
             {
                 ConnectButton.IsEnabled = true;
+                BrokerAddressBox.IsEnabled = true;
                 ClientIdBox.IsEnabled = true;
                 TopicBox.IsEnabled = true;
                 NewTopicBox.IsEnabled = false;
