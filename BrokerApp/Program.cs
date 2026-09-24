@@ -404,6 +404,12 @@ public sealed class BrokerServer : IDisposable
         _subscriptions[packet.ClientId] = topics;
         _activeSockets[packet.ClientId] = client;
         _activeReaders[packet.ClientId] = reader;
+
+        // la reconectare, reseteaza evidenta de deduplicare si coada veche
+        // pentru a permite replay-ul complet al istoricului
+        _deliveredMessages.TryRemove(packet.ClientId, out _);
+        if (_pendingMessages.TryRemove(packet.ClientId, out _)) { }
+
         foreach (string topic in topics)
         {
             ClaimOrphanMessagesForTopic(packet.ClientId, topic);
